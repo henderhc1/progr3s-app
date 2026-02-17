@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local/internal docs (do not push)
+/docs/
+/public/PRODUCT_GUIDE*

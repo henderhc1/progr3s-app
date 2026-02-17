@@ -5,15 +5,15 @@ export type UserRole = "user" | "admin";
 
 // Demo-only user for this MVP. Replace with database users later.
 export const DEMO_USER = {
-  email: "demo@progr3s.dev",
-  password: "progress123",
+  email: process.env.DEMO_USER_EMAIL ?? "demo@progr3s.dev",
+  password: process.env.DEMO_USER_PASSWORD ?? "",
   name: "Demo Builder",
   role: "user" as UserRole,
 };
 
 export const DEMO_ADMIN = {
-  email: "admin@progr3s.dev",
-  password: "admin12345",
+  email: process.env.DEMO_ADMIN_EMAIL ?? "admin@progr3s.dev",
+  password: process.env.DEMO_ADMIN_PASSWORD ?? "",
   name: "Admin Owner",
   role: "admin" as UserRole,
 };

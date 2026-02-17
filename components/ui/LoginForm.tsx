@@ -22,7 +22,7 @@ export function LoginForm() {
   // Loading state prevents duplicate submits.
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Message area is used for success and validation feedback.
-  const [feedback, setFeedback] = useState("Use demo credentials: demo@progr3s.dev / progress123");
+  const [feedback, setFeedback] = useState("Use your configured credentials to sign in.");
   const [didSucceed, setDidSucceed] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -73,7 +73,7 @@ export function LoginForm() {
         id="email"
         name="email"
         type="email"
-        placeholder="demo@progr3s.dev"
+        placeholder="name@example.com"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
@@ -84,7 +84,7 @@ export function LoginForm() {
         id="password"
         name="password"
         type="password"
-        placeholder="progress123"
+        placeholder="Enter password"
         minLength={8}
         value={password}
         onChange={(event) => setPassword(event.target.value)}

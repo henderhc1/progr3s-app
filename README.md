@@ -43,10 +43,14 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Demo credentials (fallback mode)
+## Local credentials (fallback mode)
 
-- User: `demo@progr3s.dev` / `progress123`
-- Admin: `admin@progr3s.dev` / `admin12345`
+- Configure fallback credentials in your local `.env.local`:
+  - `DEMO_USER_EMAIL`
+  - `DEMO_USER_PASSWORD`
+  - `DEMO_ADMIN_EMAIL`
+  - `DEMO_ADMIN_PASSWORD`
+- Keep any real values in `docs/LOCAL_CREDENTIALS.md` (ignored by git).
 
 ## Roles
 
@@ -103,4 +107,5 @@ Open `http://localhost:3000`.
 
 - `docs/START_HERE.md`
 - `docs/PRODUCT_GUIDE.md`
+- `docs/LOCAL_CREDENTIALS.md` (local only, ignored)
 - Downloadable: `public/PRODUCT_GUIDE.md`, `public/PRODUCT_GUIDE.txt`, `public/PRODUCT_GUIDE_v2.docx`

@@ -23,10 +23,7 @@ export default async function LoginPage() {
         <div className="login__intro">
           <p className="eyebrow">Welcome back</p>
           <h1>Log in to continue building progress.</h1>
-          <p>
-            Demo user: <strong>demo@progr3s.dev / progress123</strong>. Demo admin:{" "}
-            <strong>admin@progr3s.dev / admin12345</strong>.
-          </p>
+          <p>Use your local configured credentials.</p>
         </div>
 
         <LoginForm />
