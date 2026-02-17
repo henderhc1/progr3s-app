@@ -1,0 +1,41 @@
+// Shared auth values live here so pages and API routes stay consistent.
+export const SESSION_COOKIE_NAME = "progr3s_session";
+
+export type UserRole = "user" | "admin";
+
+// Demo-only user for this MVP. Replace with database users later.
+export const DEMO_USER = {
+  email: "demo@progr3s.dev",
+  password: "progress123",
+  name: "Demo Builder",
+  role: "user" as UserRole,
+};
+
+export const DEMO_ADMIN = {
+  email: "admin@progr3s.dev",
+  password: "admin12345",
+  name: "Admin Owner",
+  role: "admin" as UserRole,
+};
+
+export function normalizeEmail(value: string | undefined): string {
+  // Lowercase + trim keeps comparisons stable across input styles.
+  return value?.trim().toLowerCase() ?? "";
+}
+
+export function createSessionValue(email: string): string {
+  // Prefix lets us quickly validate format before trusting the value.
+  return `session:${email}`;
+}
+
+export function readEmailFromSession(sessionValue: string | undefined): string | null {
+  if (!sessionValue) {
+    return null;
+  }
+
+  if (!sessionValue.startsWith("session:")) {
+    return null;
+  }
+
+  return sessionValue.replace("session:", "");
+}

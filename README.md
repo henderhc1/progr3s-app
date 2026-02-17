@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# progr3s-dev
 
-## Getting Started
+Next.js full-stack productivity app with role-based access:
+- user login/session
+- admin login/session
+- protected dashboard
+- admin console for user management
+- MongoDB-backed data (with fallback demo mode when DB is not configured)
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router)
+- React 19 + TypeScript
+- MongoDB + Mongoose
+- bcryptjs
+- Tailwind import + custom CSS
+
+## Setup
+
+1. Install:
+
+```bash
+npm install
+```
+
+2. Configure env:
+
+```bash
+copy .env.example .env.local
+```
+
+Set:
+
+```env
+MONGODB_URI=your_mongodb_connection_string
+```
+
+3. Run:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo credentials (fallback mode)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- User: `demo@progr3s.dev` / `progress123`
+- Admin: `admin@progr3s.dev` / `admin12345`
 
-## Learn More
+## Roles
 
-To learn more about Next.js, take a look at the following resources:
+- `user`: dashboard access
+- `admin`: dashboard + `/admin` access
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Routes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Pages
+- `/`
+- `/login`
+- `/dashboard`
+- `/admin` (admin-only)
 
-## Deploy on Vercel
+### API
+- `POST /api/auth/login`
+- `GET /api/auth/logout`
+- `GET /api/auth/session`
+- `GET /api/dashboard/summary`
+- `GET /api/dashboard/tasks`
+- `POST /api/dashboard/tasks`
+- `PATCH /api/dashboard/tasks/[taskId]`
+- `DELETE /api/dashboard/tasks/[taskId]`
+- `GET /api/admin/users` (admin-only)
+- `PATCH /api/admin/users/[userId]` (admin-only)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Data model (Mongo)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### User
+- `email` (unique)
+- `name`
+- `passwordHash`
+- `role` (`user` | `admin`)
+- `isActive`
+
+### Task
+- `ownerEmail`
+- `title`
+- `done`
+
+## Scripts
+
+- `npm run dev`
+- `npm run lint`
+- `npm run build`
+- `npm run start`
+
+## Notes
+
+- Not classic MERN (no Express). This is Next.js + MongoDB full-stack.
+- Session cookie format is simple for learning/demo and should be hardened for production.
+
+## Docs
+
+- `docs/START_HERE.md`
+- `docs/PRODUCT_GUIDE.md`
+- Downloadable: `public/PRODUCT_GUIDE.md`, `public/PRODUCT_GUIDE.txt`, `public/PRODUCT_GUIDE_v2.docx`

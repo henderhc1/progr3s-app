@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "mongoose": "^9.2.1",
     "next": "16.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
