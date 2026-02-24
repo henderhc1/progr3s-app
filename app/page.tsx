@@ -41,12 +41,12 @@ export default async function Home() {
           </p>
 
           <div className="hero__cta">
-            <Link href="/login" className="btn btn--primary">
-              Start with login
+            <Link href={hasSession ? "/dashboard" : "/signup"} className="btn btn--primary">
+              {hasSession ? "Open dashboard" : "Create account"}
             </Link>
-            <a href="#features" className="btn btn--ghost">
-              Explore starter layout
-            </a>
+            <Link href="/login" className="btn btn--ghost">
+              Log in
+            </Link>
           </div>
         </div>
 
@@ -67,7 +67,7 @@ export default async function Home() {
             </li>
             <li>
               <span>Database & sessions</span>
-              <strong>Next</strong>
+              <strong>In progress</strong>
             </li>
           </ul>
         </aside>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
-type LoginResponse = {
+type SignupResponse = {
   ok: boolean;
   message?: string;
   user?: {
@@ -14,47 +14,41 @@ type LoginResponse = {
   };
 };
 
-export function LoginForm() {
+export function SignupForm() {
   const router = useRouter();
-  // Form fields are controlled to keep UI and state in sync.
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Loading state prevents duplicate submits.
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Message area is used for success and validation feedback.
-  const [feedback, setFeedback] = useState("Use your configured credentials to sign in.");
+  const [feedback, setFeedback] = useState("Create your account to start tracking progress.");
   const [didSucceed, setDidSucceed] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    // Stop browser default submit so we can call the API with fetch.
     event.preventDefault();
     setIsSubmitting(true);
     setDidSucceed(false);
-    setFeedback("Checking credentials...");
+    setFeedback("Creating account...");
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
-      const data = (await response.json()) as LoginResponse;
+      const data = (await response.json()) as SignupResponse;
 
       if (!response.ok || !data.ok) {
-        setFeedback(data.message ?? "Login failed. Please try again.");
+        setFeedback(data.message ?? "Sign-up failed. Please try again.");
         return;
       }
 
       setDidSucceed(true);
-      setFeedback(
-        `Success. Welcome, ${data.user?.name ?? "Starter User"} (${data.user?.role ?? "user"} access).`,
-      );
       setPassword("");
+      setFeedback(`Account created. Welcome, ${data.user?.name ?? "Builder"}. Redirecting to dashboard...`);
 
-      // Small delay helps users see success feedback before navigation.
       setTimeout(() => {
         router.push("/dashboard");
         router.refresh();
@@ -68,6 +62,19 @@ export function LoginForm() {
 
   return (
     <form className="login__form" onSubmit={handleSubmit}>
+      <label htmlFor="name">Name</label>
+      <input
+        id="name"
+        name="name"
+        type="text"
+        placeholder="Your name"
+        minLength={2}
+        maxLength={80}
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        required
+      />
+
       <label htmlFor="email">Email</label>
       <input
         id="email"
@@ -84,21 +91,22 @@ export function LoginForm() {
         id="password"
         name="password"
         type="password"
-        placeholder="Enter password"
+        placeholder="Create a password"
         minLength={8}
+        maxLength={72}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         required
       />
 
       <button type="submit" className="btn btn--primary btn--full" disabled={isSubmitting}>
-        {isSubmitting ? "Logging in..." : "Log in"}
+        {isSubmitting ? "Creating account..." : "Create account"}
       </button>
 
       <p className={didSucceed ? "form-feedback form-feedback--ok" : "form-feedback"}>{feedback}</p>
 
       <p className="form-note">
-        No account yet? <Link href="/signup">Create one now.</Link>
+        Already have an account? <Link href="/login">Log in.</Link>
       </p>
     </form>
   );
