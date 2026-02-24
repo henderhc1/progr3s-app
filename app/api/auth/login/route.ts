@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { createSessionValue, DEMO_ADMIN, DEMO_USER, normalizeEmail, SESSION_COOKIE_NAME, UserRole } from "@/lib/auth";
+import {
+  createSessionValue,
+  DEMO_ADMIN,
+  DEMO_USER,
+  hasConfiguredDemoCredentials,
+  normalizeEmail,
+  SESSION_COOKIE_NAME,
+  UserRole,
+} from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 
@@ -101,6 +109,7 @@ export async function POST(request: Request) {
 
   const email = normalizeEmail(payload.email);
   const password = payload.password?.trim() ?? "";
+  const isDemoConfigured = hasConfiguredDemoCredentials();
 
   let responseUser = {
     email: DEMO_USER.email,
@@ -153,6 +162,14 @@ export async function POST(request: Request) {
       name: user.name,
       role: user.role,
     };
+  } else if (!isDemoConfigured) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Demo fallback is not configured. Set DEMO_* variables in .env.local.",
+      },
+      { status: 503 },
+    );
   } else if (!isValidDemoCredential(payload)) {
     // Fallback mode when MONGODB_URI is not configured.
     return NextResponse.json(

@@ -50,7 +50,7 @@ Open `http://localhost:3000`.
   - `DEMO_USER_PASSWORD`
   - `DEMO_ADMIN_EMAIL`
   - `DEMO_ADMIN_PASSWORD`
-- Keep any real values in `docs/LOCAL_CREDENTIALS.md` (ignored by git).
+- Do not commit or document concrete credential values in repository files.
 
 ## Roles
 

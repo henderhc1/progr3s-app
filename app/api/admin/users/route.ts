@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { UserModel } from "@/lib/models/User";
+import { DEMO_ADMIN, DEMO_USER } from "@/lib/auth";
 import { getSessionIdentity } from "@/lib/session";
 
 export async function GET() {
@@ -19,8 +20,8 @@ export async function GET() {
       users: [
         {
           id: "fallback-admin",
-          email: "admin@progr3s.dev",
-          name: "Admin Owner",
+          email: DEMO_ADMIN.email,
+          name: DEMO_ADMIN.name,
           role: "admin",
           isActive: true,
           taskCount: 3,
@@ -29,8 +30,8 @@ export async function GET() {
         },
         {
           id: "fallback-user",
-          email: "demo@progr3s.dev",
-          name: "Demo Builder",
+          email: DEMO_USER.email,
+          name: DEMO_USER.name,
           role: "user",
           isActive: true,
           taskCount: 3,
