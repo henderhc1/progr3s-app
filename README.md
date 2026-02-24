@@ -1,4 +1,4 @@
-﻿# progr3s-dev
+# progr3s-dev
 
 Next.js full-stack productivity app with role-based access:
 - user login/session
@@ -15,6 +15,10 @@ Next.js full-stack productivity app with role-based access:
 - bcryptjs
 - Tailwind import + custom CSS
 
+## Project root
+
+The active app root is this repository root (`progr3s-dev`).
+
 ## Setup
 
 1. Install:
@@ -29,10 +33,14 @@ npm install
 copy .env.example .env.local
 ```
 
-Set:
+Set at least:
 
 ```env
 MONGODB_URI=your_mongodb_connection_string
+DEMO_USER_EMAIL=demo@progr3s.dev
+DEMO_USER_PASSWORD=your_demo_password
+DEMO_ADMIN_EMAIL=admin@progr3s.dev
+DEMO_ADMIN_PASSWORD=your_admin_password
 ```
 
 3. Run:
@@ -43,14 +51,24 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Local credentials (fallback mode)
+## Folder structure
 
-- Configure fallback credentials in your local `.env.local`:
+- `app/`: pages + API routes
+- `components/`: UI and feature client components
+- `lib/`: auth, DB connection, sessions, models
+- `public/`: static assets
+
+## Credentials and where to see them
+
+- Credential source of truth is local `.env.local`.
+- Demo/admin credential keys:
   - `DEMO_USER_EMAIL`
   - `DEMO_USER_PASSWORD`
   - `DEMO_ADMIN_EMAIL`
   - `DEMO_ADMIN_PASSWORD`
-- Do not commit or document concrete credential values in repository files.
+- Passwords are never returned by API and are not visible in the app UI.
+- MongoDB stores only `passwordHash` in the `users` collection.
+- To inspect users (email/name/role/active status), sign in as admin and open `/admin`.
 
 ## Roles
 
@@ -62,13 +80,16 @@ Open `http://localhost:3000`.
 ### Pages
 - `/`
 - `/login`
+- `/signup`
 - `/dashboard`
 - `/admin` (admin-only)
 
 ### API
 - `POST /api/auth/login`
+- `POST /api/auth/signup`
 - `GET /api/auth/logout`
 - `GET /api/auth/session`
+- `GET /api/health/database`
 - `GET /api/dashboard/summary`
 - `GET /api/dashboard/tasks`
 - `POST /api/dashboard/tasks`
@@ -101,11 +122,4 @@ Open `http://localhost:3000`.
 ## Notes
 
 - Not classic MERN (no Express). This is Next.js + MongoDB full-stack.
-- Session cookie format is simple for learning/demo and should be hardened for production.
-
-## Docs
-
-- `docs/START_HERE.md`
-- `docs/PRODUCT_GUIDE.md`
-- `docs/LOCAL_CREDENTIALS.md` (local only, ignored)
-- Downloadable: `public/PRODUCT_GUIDE.md`, `public/PRODUCT_GUIDE.txt`, `public/PRODUCT_GUIDE_v2.docx`
+- Session cookie format is intentionally simple for learning/demo and should be hardened for production.
