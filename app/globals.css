@@ -508,7 +508,7 @@ h3 {
     radial-gradient(640px 320px at 50% 58%, rgba(82, 255, 148, 0.16), transparent 74%),
     rgba(6, 12, 22, 0.84);
   backdrop-filter: blur(8px);
-  animation: home-intro-fade 2.2s ease forwards;
+  animation: home-intro-fade 3.5s ease forwards;
 }
 
 .home-intro--exit {
