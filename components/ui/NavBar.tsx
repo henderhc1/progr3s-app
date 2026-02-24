@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Progr3sLogo } from "@/components/ui/Progr3sLogo";
 
 type NavBarProps = {
   ctaLabel?: string;
@@ -17,7 +18,7 @@ export function NavBar({
   return (
     <header className="topbar shell-card">
       <Link href="/" className="brand">
-        progr3s
+        <Progr3sLogo />
       </Link>
 
       {showMarketingLinks && (

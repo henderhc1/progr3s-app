@@ -126,7 +126,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Database connection failed. Please try again soon.",
+      },
+      { status: 503 },
+    );
+  }
 
   if (!db) {
     return NextResponse.json(

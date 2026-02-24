@@ -117,7 +117,19 @@ export async function POST(request: Request) {
     role: DEMO_USER.role as UserRole,
   };
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Database connection failed. Please try again soon.",
+      },
+      { status: 503 },
+    );
+  }
 
   if (db) {
     // Mongo mode: verify real user records and seed demo users only if needed.

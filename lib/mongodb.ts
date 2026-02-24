@@ -37,6 +37,8 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
     cached.promise = mongoose.connect(MONGODB_URI, {
       dbName: "progr3s",
       bufferCommands: false,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
     });
   }
 
