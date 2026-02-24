@@ -475,6 +475,95 @@ h3 {
   color: var(--muted);
 }
 
+.home-stage {
+  position: relative;
+  min-height: 100vh;
+}
+
+.home-stage__content {
+  opacity: 0;
+  transform: translateY(10px) scale(0.99);
+  filter: blur(8px);
+  transition:
+    opacity 360ms ease,
+    transform 360ms ease,
+    filter 360ms ease;
+}
+
+.home-stage__content--ready {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.home-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background:
+    radial-gradient(860px 480px at 50% 38%, rgba(76, 188, 255, 0.22), transparent 72%),
+    radial-gradient(640px 320px at 50% 58%, rgba(82, 255, 148, 0.16), transparent 74%),
+    rgba(6, 12, 22, 0.84);
+  backdrop-filter: blur(8px);
+  animation: home-intro-fade 2.2s ease forwards;
+}
+
+.home-intro--exit {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 220ms ease,
+    visibility 220ms ease;
+}
+
+.home-intro__content {
+  text-align: center;
+  animation: home-brand-zoom 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.home-intro__eyebrow {
+  margin: 0;
+  font-family: var(--font-roboto-mono), monospace;
+  color: var(--accent-strong);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(82, 255, 148, 0.3);
+}
+
+.home-intro__logo {
+  margin: 0.9rem 0 0.55rem;
+}
+
+.home-intro__logo .brand__mark {
+  width: 86px;
+  height: 86px;
+  border-radius: 22px;
+  padding: 10px;
+  box-shadow:
+    0 0 24px rgba(82, 255, 148, 0.36),
+    0 0 0 1px rgba(144, 255, 193, 0.2) inset;
+}
+
+.home-intro__logo .brand__word {
+  font-size: clamp(1.4rem, 5.5vw, 3.4rem);
+  letter-spacing: 0.22em;
+  text-shadow:
+    0 0 26px rgba(82, 255, 148, 0.62),
+    -1px 0 rgba(110, 224, 255, 0.36),
+    1px 0 rgba(160, 255, 204, 0.36);
+}
+
+.home-intro__sub {
+  margin: 0;
+  font-family: var(--font-roboto-mono), monospace;
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .dashboard-stage {
   position: relative;
   min-height: 620px;
@@ -522,7 +611,7 @@ h3 {
 .welcome-intro__content {
   text-align: center;
   transform-origin: center;
-  animation: welcome-zoom 1.15s cubic-bezier(0.2, 0.95, 0.2, 1) forwards;
+  animation: welcome-zoom 1.8s cubic-bezier(0.2, 0.95, 0.2, 1) forwards;
 }
 
 .welcome-intro__eyebrow {
@@ -788,14 +877,47 @@ h3 {
   }
 }
 
+@keyframes home-intro-fade {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes home-brand-zoom {
+  0% {
+    opacity: 0;
+    transform: scale(0.58);
+    filter: blur(13px);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.06);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(0.98);
+    filter: blur(0);
+  }
+}
+
 @keyframes intro-fade {
   0% {
     opacity: 0;
   }
-  20% {
+  12% {
     opacity: 1;
   }
-  82% {
+  88% {
     opacity: 1;
   }
   100% {

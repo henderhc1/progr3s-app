@@ -13,7 +13,7 @@ export function DashboardWelcomeTransition({ userName, children }: DashboardWelc
   useEffect(() => {
     const timeout = setTimeout(() => {
       setIsDone(true);
-    }, 1200);
+    }, 1850);
 
     return () => {
       clearTimeout(timeout);
