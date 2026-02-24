@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
-import { DashboardWelcomeTransition } from "@/components/dashboard/DashboardWelcomeTransition";
 import { NavBar } from "@/components/ui/NavBar";
 import { getSessionIdentity } from "@/lib/session";
 
@@ -19,9 +18,7 @@ export default async function DashboardPage() {
         showMarketingLinks={false}
         showAdminLink={identity.role === "admin"}
       />
-      <DashboardWelcomeTransition userName={identity.name}>
-        <DashboardClient userName={identity.name} userEmail={identity.email} />
-      </DashboardWelcomeTransition>
+      <DashboardClient userName={identity.name} userEmail={identity.email} />
     </main>
   );
 }

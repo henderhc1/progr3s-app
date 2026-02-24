@@ -564,86 +564,6 @@ h3 {
   text-transform: uppercase;
 }
 
-.dashboard-stage {
-  position: relative;
-  min-height: 620px;
-}
-
-.dashboard-stage__content {
-  opacity: 0;
-  transform: translateY(10px) scale(0.99);
-  filter: blur(6px);
-  transition:
-    opacity 320ms ease,
-    transform 320ms ease,
-    filter 320ms ease;
-}
-
-.dashboard-stage__content--ready {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  filter: blur(0);
-}
-
-.welcome-intro {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  background:
-    radial-gradient(780px 420px at 50% 42%, rgba(76, 188, 255, 0.2), transparent 70%),
-    radial-gradient(520px 260px at 50% 56%, rgba(82, 255, 148, 0.16), transparent 72%),
-    rgba(5, 11, 20, 0.78);
-  backdrop-filter: blur(8px);
-  animation: intro-fade 1.2s ease forwards;
-}
-
-.welcome-intro--exit {
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 240ms ease,
-    visibility 240ms ease;
-}
-
-.welcome-intro__content {
-  text-align: center;
-  transform-origin: center;
-  animation: welcome-zoom 1.8s cubic-bezier(0.2, 0.95, 0.2, 1) forwards;
-}
-
-.welcome-intro__eyebrow {
-  margin: 0;
-  color: var(--accent-strong);
-  font-family: var(--font-roboto-mono), monospace;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  opacity: 0.9;
-}
-
-.welcome-intro__title {
-  margin: 0.45rem 0 0.2rem;
-  font-family: var(--font-roboto-mono), monospace;
-  font-size: clamp(2.2rem, 9vw, 7rem);
-  letter-spacing: 0.2em;
-  color: #dfffe9;
-  text-transform: uppercase;
-  text-shadow:
-    0 0 28px rgba(82, 255, 148, 0.55),
-    -2px 0 rgba(110, 224, 255, 0.28),
-    2px 0 rgba(176, 255, 214, 0.3);
-}
-
-.welcome-intro__subtitle {
-  margin: 0;
-  color: var(--muted);
-  font-family: var(--font-roboto-mono), monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .dashboard-grid {
   display: grid;
   gap: 16px;
@@ -906,39 +826,6 @@ h3 {
   100% {
     opacity: 1;
     transform: scale(0.98);
-    filter: blur(0);
-  }
-}
-
-@keyframes intro-fade {
-  0% {
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes welcome-zoom {
-  0% {
-    opacity: 0;
-    transform: scale(0.28);
-    filter: blur(12px);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.05);
-    filter: blur(0);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
     filter: blur(0);
   }
 }
