@@ -25,7 +25,6 @@ export function NavBar({
         <nav className="topbar__links" aria-label="Primary navigation">
           <Link href="#features">Features</Link>
           <Link href="#workflow">Workflow</Link>
-          <Link href="#pricing">Pricing</Link>
         </nav>
       )}
 

@@ -92,13 +92,6 @@ export default async function Home() {
 
         {/* Interactive section so the landing page feels more alive. */}
         <ProgressPlayground />
-
-        <section id="pricing" className="shell-card teaser">
-          <h2>Template-ready pricing area</h2>
-          <p>
-            Placeholder pricing content so you can shape product tiers later without redesigning the page.
-          </p>
-        </section>
       </main>
     </HomeWelcomeTransition>
   );

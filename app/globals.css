@@ -439,40 +439,76 @@ h3 {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .task-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(13, 22, 34, 0.78);
 }
 
-.task-item span {
+.task-item__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-item__header strong {
   color: var(--text);
 }
 
-.task-item__toggle {
+.task-item__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-item__controls select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
   border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
+  background: var(--panel-soft);
+  color: var(--text);
 }
 
-.task-item__toggle:hover {
-  border-color: var(--accent);
-  color: var(--text-strong);
+.task-item--not-started {
+  border-color: rgba(123, 186, 255, 0.45);
 }
 
-.task-item.is-done span {
-  text-decoration: line-through;
+.task-item--in-progress {
+  border-color: rgba(255, 194, 87, 0.55);
+  background: linear-gradient(140deg, rgba(29, 23, 8, 0.78), rgba(18, 18, 22, 0.8));
+}
+
+.task-item--completed {
+  border-color: rgba(82, 255, 148, 0.55);
+}
+
+.task-status {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+.task-status--in-progress {
+  color: #ffc257;
+}
+
+.task-status--completed {
+  color: var(--accent-strong);
+}
+
+.goal-proof {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .home-stage {
@@ -605,6 +641,136 @@ h3 {
   border: 1px solid var(--line);
   background: var(--panel-soft);
   color: var(--text);
+}
+
+.dashboard-task-input select {
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.day-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.day-chip {
+  border: 1px solid var(--line);
+  background: rgba(13, 22, 34, 0.8);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.day-chip:hover {
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+.day-chip.is-active {
+  border-color: rgba(82, 255, 148, 0.7);
+  background: rgba(82, 255, 148, 0.16);
+  color: var(--accent-strong);
+}
+
+.goal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goal-filter {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.72rem;
+  background: rgba(13, 22, 34, 0.8);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.8rem;
+}
+
+.goal-filter.is-active {
+  border-color: rgba(82, 255, 148, 0.72);
+  color: var(--accent-strong);
+  background: rgba(82, 255, 148, 0.14);
+}
+
+.proof-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.proof-upload input {
+  max-width: 190px;
+}
+
+.completed-folder__toggle {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(13, 22, 34, 0.82);
+  color: var(--text);
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+}
+
+.completed-folder {
+  display: grid;
+  gap: 10px;
+  border: 1px dashed rgba(82, 255, 148, 0.4);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.completed-folder h3 {
+  margin: 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-grid__head {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.calendar-cell {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  color: var(--muted);
+  background: rgba(13, 22, 34, 0.82);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.calendar-cell.is-marked {
+  border-color: rgba(82, 255, 148, 0.72);
+  color: var(--text-strong);
+  box-shadow: 0 0 0 1px rgba(82, 255, 148, 0.25) inset;
+}
+
+.calendar-cell i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(82, 255, 148, 0.45);
 }
 
 .focus-list {

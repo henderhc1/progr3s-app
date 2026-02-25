@@ -3,6 +3,7 @@ import { DEMO_USER } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
+import { computeStreakDays, resolveTaskStatus, toLocalDateKey } from "@/lib/tasks";
 
 function getTodayLabel(): string {
   // Human-friendly date label for dashboard cards.
@@ -49,9 +50,36 @@ export async function GET() {
   let streakDays = 5;
 
   if (db) {
-    completedToday = await TaskModel.countDocuments({ ownerEmail: identity.email, done: true });
-    pendingToday = await TaskModel.countDocuments({ ownerEmail: identity.email, done: false });
-    streakDays = Math.max(1, Math.min(30, completedToday));
+    const tasks = await TaskModel.find(
+      { ownerEmail: identity.email },
+      { status: 1, done: 1, completionDates: 1 },
+    ).lean();
+    const today = toLocalDateKey();
+    const completionDateSet = new Set<string>();
+
+    completedToday = 0;
+    pendingToday = 0;
+
+    for (const task of tasks) {
+      const status = resolveTaskStatus(task.status, task.done);
+      const completionDates = Array.isArray(task.completionDates)
+        ? task.completionDates.filter((value): value is string => typeof value === "string")
+        : [];
+
+      if (status !== "completed") {
+        pendingToday += 1;
+      }
+
+      if (completionDates.includes(today)) {
+        completedToday += 1;
+      }
+
+      for (const dateKey of completionDates) {
+        completionDateSet.add(dateKey);
+      }
+    }
+
+    streakDays = computeStreakDays(completionDateSet);
   }
 
   return NextResponse.json({
