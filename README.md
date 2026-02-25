@@ -96,7 +96,8 @@ Open `http://localhost:3000`.
 ### API
 - `POST /api/auth/login`
 - `POST /api/auth/signup`
-- `GET /api/auth/logout`
+- `POST /api/auth/logout` (recommended)
+- `GET /api/auth/logout` (safe redirect, no session mutation)
 - `GET /api/auth/session`
 - `GET /api/health/database`
 - `GET /api/dashboard/summary`
@@ -159,6 +160,7 @@ Open `http://localhost:3000`.
 
 - Not classic MERN (no Express). This is Next.js + MongoDB full-stack.
 - Session cookie format is intentionally simple for learning/demo and should be hardened for production.
+- Session checks now keep users signed in during transient DB outages and return service errors instead of forcing logout.
 
 ## Troubleshooting Vercel Login
 

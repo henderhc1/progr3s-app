@@ -11,6 +11,18 @@ export type SessionIdentity = {
   isFallback: boolean;
 };
 
+function createCookieFallbackIdentity(email: string): SessionIdentity {
+  const nameFromEmail = email.split("@")[0]?.trim();
+
+  return {
+    email,
+    name: nameFromEmail ? nameFromEmail.slice(0, 80) : "User",
+    role: "user",
+    isActive: true,
+    isFallback: true,
+  };
+}
+
 function getDemoFallbackIdentity(email: string): SessionIdentity | null {
   if (email === DEMO_ADMIN.email) {
     return {
@@ -50,11 +62,11 @@ export async function getSessionIdentity(): Promise<SessionIdentity | null> {
   try {
     db = await connectToDatabase();
   } catch {
-    return demoFallback;
+    return demoFallback ?? createCookieFallbackIdentity(sessionEmail);
   }
 
   if (!db) {
-    return demoFallback;
+    return demoFallback ?? createCookieFallbackIdentity(sessionEmail);
   }
 
   let user = null;
@@ -63,7 +75,7 @@ export async function getSessionIdentity(): Promise<SessionIdentity | null> {
     const userModel = getUserModel(db);
     user = await userModel.findOne({ email: sessionEmail });
   } catch {
-    return demoFallback;
+    return demoFallback ?? createCookieFallbackIdentity(sessionEmail);
   }
 
   if (!user || !user.isActive) {

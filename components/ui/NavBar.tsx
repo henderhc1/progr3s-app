@@ -14,6 +14,8 @@ export function NavBar({
   showMarketingLinks = true,
   showAdminLink = false,
 }: NavBarProps) {
+  const isLogoutCta = ctaHref === "/api/auth/logout";
+
   // Shared nav component so top-level pages stay visually consistent.
   return (
     <header className="topbar shell-card">
@@ -35,9 +37,17 @@ export function NavBar({
         </nav>
       )}
 
-      <Link href={ctaHref} className="btn btn--primary">
-        {ctaLabel}
-      </Link>
+      {isLogoutCta ? (
+        <form method="post" action="/api/auth/logout">
+          <button type="submit" className="btn btn--primary">
+            {ctaLabel}
+          </button>
+        </form>
+      ) : (
+        <Link href={ctaHref} className="btn btn--primary">
+          {ctaLabel}
+        </Link>
+      )}
     </header>
   );
 }

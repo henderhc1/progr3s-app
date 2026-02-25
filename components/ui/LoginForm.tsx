@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 type LoginResponse = {
@@ -15,7 +14,6 @@ type LoginResponse = {
 };
 
 export function LoginForm() {
-  const router = useRouter();
   // Form fields are controlled to keep UI and state in sync.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,10 +72,9 @@ export function LoginForm() {
       setPassword("");
       const nextPath = data.user?.role === "admin" ? "/admin" : "/dashboard";
 
-      // Small delay helps users see success feedback before navigation.
+      // Force a full navigation so fresh auth cookies are always picked up.
       setTimeout(() => {
-        router.push(nextPath);
-        router.refresh();
+        window.location.assign(nextPath);
       }, 500);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Request failed";

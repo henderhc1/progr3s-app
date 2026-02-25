@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 type SignupResponse = {
@@ -15,7 +14,6 @@ type SignupResponse = {
 };
 
 export function SignupForm() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,8 +49,7 @@ export function SignupForm() {
       setFeedback(`Account created. Welcome, ${data.user?.name ?? "Builder"}. Redirecting to dashboard...`);
 
       setTimeout(() => {
-        router.push("/dashboard");
-        router.refresh();
+        window.location.assign("/dashboard");
       }, 500);
     } catch {
       setFeedback("Network error. Please retry in a moment.");
