@@ -9,6 +9,10 @@ export type VerificationMode = (typeof VERIFICATION_MODES)[number];
 
 export const VERIFICATION_STATES = ["not_required", "pending", "submitted", "verified"] as const;
 export type VerificationState = (typeof VERIFICATION_STATES)[number];
+export type PeerConfirmation = {
+  email: string;
+  confirmedAt: string;
+};
 
 const TASK_STATUS_SET = new Set<string>(TASK_STATUSES);
 const VERIFICATION_MODE_SET = new Set<string>(VERIFICATION_MODES);
@@ -94,6 +98,66 @@ export function normalizeEmailList(value: unknown): string[] {
   }
 
   return [];
+}
+
+export function normalizePeerConfirmations(value: unknown): PeerConfirmation[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const byEmail = new Map<string, string>();
+
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+
+    const emailRaw = "email" in item ? item.email : "";
+    const confirmedAtRaw = "confirmedAt" in item ? item.confirmedAt : "";
+
+    if (typeof emailRaw !== "string" || !emailRaw.includes("@")) {
+      continue;
+    }
+
+    const email = emailRaw.trim().toLowerCase();
+    let confirmedAt = "";
+
+    if (confirmedAtRaw instanceof Date) {
+      confirmedAt = confirmedAtRaw.toISOString();
+    } else if (typeof confirmedAtRaw === "string") {
+      const parsed = new Date(confirmedAtRaw);
+      confirmedAt = Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+    }
+
+    if (!confirmedAt) {
+      confirmedAt = new Date().toISOString();
+    }
+
+    byEmail.set(email, confirmedAt);
+  }
+
+  return Array.from(byEmail.entries())
+    .map(([email, confirmedAt]) => ({ email, confirmedAt }))
+    .sort((a, b) => a.email.localeCompare(b.email));
+}
+
+export function computePeerVerificationState(
+  peerConfirmers: string[],
+  peerConfirmations: PeerConfirmation[],
+): VerificationState {
+  if (peerConfirmers.length === 0) {
+    return "not_required";
+  }
+
+  if (peerConfirmations.length === 0) {
+    return "pending";
+  }
+
+  if (peerConfirmations.length < peerConfirmers.length) {
+    return "submitted";
+  }
+
+  return "verified";
 }
 
 export function toLocalDateKey(date: Date = new Date()): string {

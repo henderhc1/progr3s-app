@@ -10,13 +10,17 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  if (identity.role === "admin") {
+    redirect("/admin");
+  }
+
   return (
     <main className="page-wrap">
       <NavBar
         ctaLabel="Logout"
         ctaHref="/api/auth/logout"
         showMarketingLinks={false}
-        showAdminLink={identity.role === "admin"}
+        showAdminLink={false}
       />
       <DashboardClient userName={identity.name} userEmail={identity.email} />
     </main>

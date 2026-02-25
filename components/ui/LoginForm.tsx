@@ -38,13 +38,32 @@ export function LoginForm() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "same-origin",
         body: JSON.stringify({ email, password }),
       });
+      const rawBody = await response.text();
+      let data: LoginResponse | null = null;
 
-      const data = (await response.json()) as LoginResponse;
+      if (rawBody) {
+        try {
+          data = JSON.parse(rawBody) as LoginResponse;
+        } catch {
+          data = null;
+        }
+      }
 
-      if (!response.ok || !data.ok) {
-        setFeedback(data.message ?? "Login failed. Please try again.");
+      if (!response.ok || !data?.ok) {
+        if (data?.message) {
+          setFeedback(data.message);
+          return;
+        }
+
+        const serverHint = rawBody.trim().slice(0, 140);
+        setFeedback(
+          serverHint
+            ? `Login failed (${response.status}). ${serverHint}`
+            : `Login failed (${response.status}). Unexpected server response.`,
+        );
         return;
       }
 
@@ -53,14 +72,16 @@ export function LoginForm() {
         `Success. Welcome, ${data.user?.name ?? "Starter User"} (${data.user?.role ?? "user"} access).`,
       );
       setPassword("");
+      const nextPath = data.user?.role === "admin" ? "/admin" : "/dashboard";
 
       // Small delay helps users see success feedback before navigation.
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push(nextPath);
         router.refresh();
       }, 500);
-    } catch {
-      setFeedback("Network error. Please retry in a moment.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Request failed";
+      setFeedback(`Network error: ${message}`);
     } finally {
       setIsSubmitting(false);
     }

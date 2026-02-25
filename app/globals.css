@@ -71,7 +71,7 @@ body::before {
   background-size: 58px 58px, 58px 58px;
   mix-blend-mode: screen;
   opacity: 0.35;
-  animation: grid-drift 16s linear infinite;
+  animation: none;
 }
 
 body::after {
@@ -82,8 +82,8 @@ body::after {
   background:
     radial-gradient(circle at 16% 7%, rgba(78, 176, 255, 0.26), transparent 46%),
     radial-gradient(circle at 84% 5%, rgba(96, 255, 224, 0.22), transparent 44%);
-  filter: blur(36px);
-  opacity: 0.9;
+  filter: blur(20px);
+  opacity: 0.5;
 }
 
 ::selection {
@@ -251,6 +251,12 @@ a {
 .btn--ghost {
   color: var(--text);
   background: rgba(13, 22, 34, 0.72);
+}
+
+.btn--danger {
+  border: 1px solid rgba(255, 107, 107, 0.72);
+  color: #ffe8e8;
+  background: rgba(108, 29, 38, 0.78);
 }
 
 .btn--full {
@@ -490,6 +496,10 @@ h3 {
   border-color: rgba(82, 255, 148, 0.55);
 }
 
+.task-item.is-pending {
+  opacity: 0.74;
+}
+
 .task-status {
   font-size: 0.78rem;
   text-transform: uppercase;
@@ -509,6 +519,48 @@ h3 {
   margin: 0;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.peer-management {
+  display: grid;
+  gap: 8px;
+}
+
+.peer-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.peer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(123, 186, 255, 0.4);
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  background: rgba(35, 52, 78, 0.42);
+  color: #c8e5ff;
+  font-size: 0.78rem;
+}
+
+.peer-chip.is-verified {
+  border-color: rgba(82, 255, 148, 0.68);
+  color: var(--accent-strong);
+  background: rgba(82, 255, 148, 0.12);
+}
+
+.peer-chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.peer-chip button:hover {
+  color: #ffffff;
 }
 
 .home-stage {
@@ -604,6 +656,7 @@ h3 {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .dashboard-card {
@@ -673,6 +726,11 @@ h3 {
   color: var(--text-strong);
 }
 
+.day-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .day-chip.is-active {
   border-color: rgba(82, 255, 148, 0.7);
   background: rgba(82, 255, 148, 0.16);
@@ -700,6 +758,12 @@ h3 {
   border-color: rgba(82, 255, 148, 0.72);
   color: var(--accent-strong);
   background: rgba(82, 255, 148, 0.14);
+}
+
+.goal-filter:disabled,
+.completed-folder__toggle:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .proof-upload {
@@ -741,6 +805,13 @@ h3 {
   gap: 6px;
 }
 
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .calendar-grid__head {
   text-align: center;
   color: var(--muted);
@@ -771,6 +842,28 @@ h3 {
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 0 12px rgba(82, 255, 148, 0.45);
+}
+
+.calendar-cell.is-empty {
+  border-style: dashed;
+  opacity: 0.35;
+}
+
+.peer-request-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.peer-request-item {
+  border: 1px solid rgba(123, 186, 255, 0.42);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(18, 31, 50, 0.9), rgba(12, 22, 34, 0.9));
+  padding: 12px;
+  display: grid;
+  gap: 8px;
 }
 
 .focus-list {
@@ -838,6 +931,21 @@ h3 {
   margin: 0.35rem 0;
 }
 
+.admin-create {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1.4fr 1.6fr auto auto;
+}
+
+.admin-create input,
+.admin-create select {
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
 .admin-table {
   display: grid;
   gap: 8px;
@@ -894,6 +1002,12 @@ h3 {
   align-items: center;
   gap: 6px;
   color: var(--muted);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .login {
@@ -1062,8 +1176,21 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .admin-create {
+    grid-template-columns: 1fr;
+  }
+
   .admin-table__head,
   .admin-table__row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }

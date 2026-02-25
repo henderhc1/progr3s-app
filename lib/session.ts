@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { DEMO_ADMIN, DEMO_USER, readEmailFromSession, SESSION_COOKIE_NAME, UserRole } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
-import { UserModel } from "@/lib/models/User";
+import { getUserModel } from "@/lib/models/User";
 
 export type SessionIdentity = {
   email: string;
@@ -10,6 +10,30 @@ export type SessionIdentity = {
   isActive: boolean;
   isFallback: boolean;
 };
+
+function getDemoFallbackIdentity(email: string): SessionIdentity | null {
+  if (email === DEMO_ADMIN.email) {
+    return {
+      email: DEMO_ADMIN.email,
+      name: DEMO_ADMIN.name,
+      role: DEMO_ADMIN.role,
+      isActive: true,
+      isFallback: true,
+    };
+  }
+
+  if (email === DEMO_USER.email) {
+    return {
+      email: DEMO_USER.email,
+      name: DEMO_USER.name,
+      role: DEMO_USER.role,
+      isActive: true,
+      isFallback: true,
+    };
+  }
+
+  return null;
+}
 
 export async function getSessionIdentity(): Promise<SessionIdentity | null> {
   const cookieStore = await cookies();
@@ -20,33 +44,27 @@ export async function getSessionIdentity(): Promise<SessionIdentity | null> {
     return null;
   }
 
-  const db = await connectToDatabase();
+  const demoFallback = getDemoFallbackIdentity(sessionEmail);
+  let db = null;
 
-  if (!db) {
-    if (sessionEmail === DEMO_ADMIN.email) {
-      return {
-        email: DEMO_ADMIN.email,
-        name: DEMO_ADMIN.name,
-        role: DEMO_ADMIN.role,
-        isActive: true,
-        isFallback: true,
-      };
-    }
-
-    if (sessionEmail === DEMO_USER.email) {
-      return {
-        email: DEMO_USER.email,
-        name: DEMO_USER.name,
-        role: DEMO_USER.role,
-        isActive: true,
-        isFallback: true,
-      };
-    }
-
-    return null;
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return demoFallback;
   }
 
-  const user = await UserModel.findOne({ email: sessionEmail });
+  if (!db) {
+    return demoFallback;
+  }
+
+  let user = null;
+
+  try {
+    const userModel = getUserModel(db);
+    user = await userModel.findOne({ email: sessionEmail });
+  } catch {
+    return demoFallback;
+  }
 
   if (!user || !user.isActive) {
     return null;

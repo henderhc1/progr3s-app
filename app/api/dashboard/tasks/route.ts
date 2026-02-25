@@ -4,7 +4,9 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
 import {
+  computePeerVerificationState,
   normalizeEmailList,
+  normalizePeerConfirmations,
   normalizeScheduledDays,
   normalizeTaskStatus,
   normalizeVerificationMode,
@@ -70,15 +72,27 @@ function mapTask(task: {
     state?: string;
     proofLabel?: string;
     peerConfirmers?: unknown;
+    peerConfirmations?: unknown;
   } | null;
   sharedWith?: unknown;
 }) {
   const status = resolveTaskStatus(task.status, task.done);
-  const verificationMode = normalizeVerificationMode(task.verification?.mode);
-  const verificationState = normalizeVerificationState(
-    task.verification?.state,
-    verificationMode === "none" ? "not_required" : "pending",
+  const sharedWith = normalizeEmailList(task.sharedWith);
+  const verificationMode = sharedWith.length > 0 ? "peer" : normalizeVerificationMode(task.verification?.mode);
+  const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(task.verification?.peerConfirmers);
+  const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
+    peerConfirmers.includes(confirmation.email),
   );
+  const verificationState =
+    verificationMode === "none"
+      ? "not_required"
+      : verificationMode === "peer"
+        ? sharedWith.length > 0
+          ? peerConfirmations.length > 0
+            ? "verified"
+            : "pending"
+          : computePeerVerificationState(peerConfirmers, peerConfirmations)
+        : normalizeVerificationState(task.verification?.state, "pending");
 
   return {
     _id: typeof task._id === "string" ? task._id : task._id.toString(),
@@ -93,14 +107,23 @@ function mapTask(task: {
       mode: verificationMode,
       state: verificationMode === "none" ? "not_required" : verificationState,
       proofLabel: typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "",
-      peerConfirmers: normalizeEmailList(task.verification?.peerConfirmers),
+      peerConfirmers,
+      peerConfirmations,
     },
-    sharedWith: normalizeEmailList(task.sharedWith),
+    sharedWith,
   };
 }
 
-function getVerificationStateForMode(mode: VerificationMode): VerificationState {
-  return mode === "none" ? "not_required" : "pending";
+function getVerificationStateForMode(mode: VerificationMode, peerConfirmers: string[]): VerificationState {
+  if (mode === "none") {
+    return "not_required";
+  }
+
+  if (mode === "peer") {
+    return computePeerVerificationState(peerConfirmers, []);
+  }
+
+  return "pending";
 }
 
 export async function GET() {
@@ -108,6 +131,10 @@ export async function GET() {
 
   if (!identity) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
+  }
+
+  if (identity.role !== "user") {
+    return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
   }
 
   const db = await connectToDatabase();
@@ -135,6 +162,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
+  if (identity.role !== "user") {
+    return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
+  }
+
   const body = (await request.json()) as CreateTaskPayload;
   const title = body.title?.trim() ?? "";
 
@@ -147,12 +178,19 @@ export async function POST(request: Request) {
   }
 
   const fallbackStatus = typeof body.done === "boolean" ? (body.done ? "completed" : "not_started") : "not_started";
-  const status = normalizeTaskStatus(body.status, fallbackStatus);
+  let status = normalizeTaskStatus(body.status, fallbackStatus);
   const scheduledDays = normalizeScheduledDays(body.scheduledDays);
-  const verificationMode = normalizeVerificationMode(body.verificationMode);
-  const verificationState = getVerificationStateForMode(verificationMode);
-  const sharedWith = normalizeEmailList(body.sharedWith);
+  const sharedWith = normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email);
+  const verificationMode = sharedWith.length > 0 ? "peer" : normalizeVerificationMode(body.verificationMode);
   const peerConfirmers = normalizeEmailList(body.peerConfirmers);
+  const effectivePeerConfirmers = sharedWith.length > 0 ? sharedWith : verificationMode === "peer" ? peerConfirmers : [];
+  const verificationState =
+    sharedWith.length > 0 ? "pending" : getVerificationStateForMode(verificationMode, effectivePeerConfirmers);
+
+  if (sharedWith.length > 0 && status === "completed") {
+    status = "not_started";
+  }
+
   const completionDates = status === "completed" ? [toLocalDateKey()] : [];
 
   const db = await connectToDatabase();
@@ -175,7 +213,8 @@ export async function POST(request: Request) {
           mode: verificationMode,
           state: verificationState,
           proofLabel: "",
-          peerConfirmers,
+          peerConfirmers: effectivePeerConfirmers,
+          peerConfirmations: [],
         },
         sharedWith,
       }),
@@ -193,7 +232,8 @@ export async function POST(request: Request) {
       mode: verificationMode,
       state: verificationState,
       proofLabel: "",
-      peerConfirmers,
+      peerConfirmers: effectivePeerConfirmers,
+      peerConfirmations: [],
     },
     sharedWith,
   });

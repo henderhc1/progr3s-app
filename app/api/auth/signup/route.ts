@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { createSessionValue, normalizeEmail, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
-import { UserModel } from "@/lib/models/User";
+import { getUserModel } from "@/lib/models/User";
 
 type SignupPayload = {
   name?: string;
@@ -150,7 +150,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingUser = await UserModel.findOne({ email: validation.email }).lean();
+  const userModel = getUserModel(db);
+  const existingUser = await userModel.findOne({ email: validation.email }).lean();
 
   if (existingUser) {
     return NextResponse.json(
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
   let user;
 
   try {
-    user = await UserModel.create({
+    user = await userModel.create({
       name: validation.name,
       email: validation.email,
       passwordHash,

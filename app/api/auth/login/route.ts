@@ -10,7 +10,7 @@ import {
   UserRole,
 } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
-import { UserModel } from "@/lib/models/User";
+import { getUserModel } from "@/lib/models/User";
 
 type LoginPayload = {
   email?: string;
@@ -83,7 +83,19 @@ function isValidDemoCredential(payload: LoginPayload): boolean {
 
 export async function POST(request: Request) {
   // Read the body in a format-agnostic way (JSON or form).
-  const payload = await readPayload(request);
+  let payload: LoginPayload | null = null;
+
+  try {
+    payload = await readPayload(request);
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Invalid request body. Send valid JSON or form data.",
+      },
+      { status: 400 },
+    );
+  }
 
   if (!payload) {
     return NextResponse.json(
@@ -132,48 +144,63 @@ export async function POST(request: Request) {
   }
 
   if (db) {
-    // Mongo mode: verify real user records and seed demo users only if needed.
-    let user = await UserModel.findOne({ email });
+    try {
+      const userModel = getUserModel(db);
 
-    if (!user && isValidDemoCredential(payload)) {
-      const isAdminLogin = email === DEMO_ADMIN.email;
-      const passwordHash = await bcrypt.hash(isAdminLogin ? DEMO_ADMIN.password : DEMO_USER.password, 10);
-      user = await UserModel.create({
-        email: isAdminLogin ? DEMO_ADMIN.email : DEMO_USER.email,
-        name: isAdminLogin ? DEMO_ADMIN.name : DEMO_USER.name,
-        passwordHash,
-        role: isAdminLogin ? DEMO_ADMIN.role : DEMO_USER.role,
-        isActive: true,
-      });
-    }
+      // Mongo mode: verify real user records and seed demo users only if needed.
+      let user = await userModel.findOne({ email });
 
-    if (!user) {
+      if (!user && isValidDemoCredential(payload)) {
+        const isAdminLogin = email === DEMO_ADMIN.email;
+        const passwordHash = await bcrypt.hash(isAdminLogin ? DEMO_ADMIN.password : DEMO_USER.password, 10);
+        user = await userModel.create({
+          email: isAdminLogin ? DEMO_ADMIN.email : DEMO_USER.email,
+          name: isAdminLogin ? DEMO_ADMIN.name : DEMO_USER.name,
+          passwordHash,
+          role: isAdminLogin ? DEMO_ADMIN.role : DEMO_USER.role,
+          isActive: true,
+        });
+      }
+
+      if (!user) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: "Invalid email or password.",
+          },
+          { status: 401 },
+        );
+      }
+
+      const matches = await bcrypt.compare(password, user.passwordHash);
+
+      if (!matches || !user.isActive) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: "Invalid email or password.",
+          },
+          { status: 401 },
+        );
+      }
+
+      responseUser = {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown login error";
+      console.error("[auth/login] Database query flow failed", { email, message });
+
       return NextResponse.json(
         {
           ok: false,
-          message: "Invalid email or password.",
+          message: "Login is temporarily unavailable. Please retry in a moment.",
         },
-        { status: 401 },
+        { status: 503 },
       );
     }
-
-    const matches = await bcrypt.compare(password, user.passwordHash);
-
-    if (!matches || !user.isActive) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Invalid email or password.",
-        },
-        { status: 401 },
-      );
-    }
-
-    responseUser = {
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
   } else if (!isDemoConfigured) {
     return NextResponse.json(
       {

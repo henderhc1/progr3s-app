@@ -1,4 +1,4 @@
-import { InferSchemaType, Model, Schema, model, models } from "mongoose";
+import mongoose, { InferSchemaType, Model, Schema, model, models } from "mongoose";
 
 const userSchema = new Schema(
   {
@@ -38,6 +38,16 @@ const userSchema = new Schema(
 export type UserDocument = InferSchemaType<typeof userSchema> & {
   _id: string;
 };
+
+export function getUserModel(connection: typeof mongoose = mongoose): Model<UserDocument> {
+  const existingModel = connection.models.User as Model<UserDocument> | undefined;
+
+  if (existingModel) {
+    return existingModel;
+  }
+
+  return connection.model<UserDocument>("User", userSchema);
+}
 
 export const UserModel: Model<UserDocument> =
   (models.User as Model<UserDocument>) ?? model<UserDocument>("User", userSchema);

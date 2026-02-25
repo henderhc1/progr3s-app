@@ -33,6 +33,16 @@ export async function GET() {
     );
   }
 
+  if (identity.role !== "user") {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Dashboard goals are user-only.",
+      },
+      { status: 403 },
+    );
+  }
+
   const db = await connectToDatabase();
 
   if (!db && identity.email !== DEMO_USER.email) {

@@ -5,7 +5,9 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
 import {
+  computePeerVerificationState,
   normalizeEmailList,
+  normalizePeerConfirmations,
   normalizeScheduledDays,
   normalizeTaskStatus,
   normalizeVerificationMode,
@@ -38,15 +40,27 @@ function mapTask(task: {
     state?: string;
     proofLabel?: string;
     peerConfirmers?: unknown;
+    peerConfirmations?: unknown;
   } | null;
   sharedWith?: unknown;
 }) {
   const status = resolveTaskStatus(task.status, task.done);
-  const verificationMode = normalizeVerificationMode(task.verification?.mode);
-  const verificationState = normalizeVerificationState(
-    task.verification?.state,
-    verificationMode === "none" ? "not_required" : "pending",
+  const sharedWith = normalizeEmailList(task.sharedWith);
+  const verificationMode = sharedWith.length > 0 ? "peer" : normalizeVerificationMode(task.verification?.mode);
+  const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(task.verification?.peerConfirmers);
+  const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
+    peerConfirmers.includes(confirmation.email),
   );
+  const verificationState =
+    verificationMode === "none"
+      ? "not_required"
+      : verificationMode === "peer"
+        ? sharedWith.length > 0
+          ? peerConfirmations.length > 0
+            ? "verified"
+            : "pending"
+          : computePeerVerificationState(peerConfirmers, peerConfirmations)
+        : normalizeVerificationState(task.verification?.state, "pending");
 
   return {
     _id: typeof task._id === "string" ? task._id : task._id.toString(),
@@ -61,9 +75,10 @@ function mapTask(task: {
       mode: verificationMode,
       state: verificationMode === "none" ? "not_required" : verificationState,
       proofLabel: typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "",
-      peerConfirmers: normalizeEmailList(task.verification?.peerConfirmers),
+      peerConfirmers,
+      peerConfirmations,
     },
-    sharedWith: normalizeEmailList(task.sharedWith),
+    sharedWith,
   };
 }
 
@@ -72,6 +87,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
 
   if (!identity) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
+  }
+
+  if (identity.role !== "user") {
+    return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
   }
 
   const { taskId } = await context.params;
@@ -86,21 +105,37 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
 
     return NextResponse.json({
       ok: true,
-      task: mapTask({
+      task: mapTask((() => {
+        const sharedWith = normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email);
+        const mode = sharedWith.length > 0 ? "peer" : normalizeVerificationMode(body.verificationMode);
+        const peerConfirmers = sharedWith.length > 0 ? sharedWith : mode === "peer" ? normalizeEmailList(body.peerConfirmers) : [];
+        const rawStatus = normalizeTaskStatus(body.status, body.done ? "completed" : "not_started");
+        const status = sharedWith.length > 0 && rawStatus === "completed" ? "not_started" : rawStatus;
+
+        return {
         _id: taskId,
         title: body.title ?? "Updated task",
-        status: normalizeTaskStatus(body.status, body.done ? "completed" : "not_started"),
-        done: body.done ?? false,
+        status,
+        done: status === "completed",
         scheduledDays: normalizeScheduledDays(body.scheduledDays),
-        completionDates: body.done ? [toLocalDateKey()] : [],
+        completionDates: status === "completed" ? [toLocalDateKey()] : [],
         verification: {
-          mode: normalizeVerificationMode(body.verificationMode),
-          state: normalizeVerificationState(body.verificationState),
+            mode,
+            state:
+              mode === "none"
+                ? "not_required"
+                : mode === "peer"
+                  ? sharedWith.length > 0
+                    ? "pending"
+                    : computePeerVerificationState(peerConfirmers, [])
+                  : normalizeVerificationState(body.verificationState, "pending"),
           proofLabel: body.verificationProofLabel?.trim() ?? "",
-          peerConfirmers: normalizeEmailList(body.peerConfirmers),
+            peerConfirmers,
+            peerConfirmations: [],
         },
-        sharedWith: normalizeEmailList(body.sharedWith),
-      }),
+        sharedWith,
+        };
+      })()),
     });
   }
 
@@ -135,6 +170,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     nextStatus = normalizeTaskStatus(body.status, fallbackStatus);
   }
 
+  const currentSharedWith = normalizeEmailList(task.sharedWith).filter((email) => email !== identity.email);
+  const nextSharedWith =
+    body.sharedWith !== undefined
+      ? normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email)
+      : currentSharedWith;
+
+  if (currentStatus !== "completed" && nextStatus === "completed" && nextSharedWith.length > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Shared goals are completed by recipient approval.",
+      },
+      { status: 400 },
+    );
+  }
+
   if (nextStatus !== currentStatus) {
     task.status = nextStatus;
     task.done = nextStatus === "completed";
@@ -156,36 +207,75 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
   }
 
   const modeFallback = normalizeVerificationMode(task.verification?.mode);
-  const mode = body.verificationMode ? normalizeVerificationMode(body.verificationMode, modeFallback) : modeFallback;
+  const mode =
+    nextSharedWith.length > 0
+      ? "peer"
+      : body.verificationMode
+        ? normalizeVerificationMode(body.verificationMode, modeFallback)
+        : modeFallback;
+  const rawProofLabel = body.verificationProofLabel;
+  const proofLabel = typeof rawProofLabel === "string"
+    ? rawProofLabel.trim().slice(0, 160)
+    : task.verification?.proofLabel?.trim() ?? "";
 
-  task.verification = {
-    mode,
-    state:
-      mode === "none"
-        ? "not_required"
-        : normalizeVerificationState(
-            body.verificationState ?? task.verification?.state,
-            task.verification?.state === "not_required" ? "pending" : "pending",
-          ),
-    proofLabel: task.verification?.proofLabel?.trim() ?? "",
-    peerConfirmers: normalizeEmailList(task.verification?.peerConfirmers),
-  };
-
-  if (typeof body.verificationProofLabel === "string") {
-    const proofLabel = body.verificationProofLabel.trim().slice(0, 160);
-    task.verification.proofLabel = proofLabel;
-
-    if (proofLabel && task.verification.mode !== "none" && task.verification.state === "pending") {
-      task.verification.state = "submitted";
-    }
-  }
+  let peerConfirmers = normalizeEmailList(task.verification?.peerConfirmers);
+  let peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations);
 
   if (body.peerConfirmers !== undefined) {
-    task.verification.peerConfirmers = normalizeEmailList(body.peerConfirmers);
+    peerConfirmers = normalizeEmailList(body.peerConfirmers);
   }
 
+  if (nextSharedWith.length > 0) {
+    peerConfirmers = nextSharedWith;
+  }
+
+  if (mode !== "peer") {
+    peerConfirmers = [];
+    peerConfirmations = [];
+  } else {
+    peerConfirmations = peerConfirmations.filter((confirmation) => peerConfirmers.includes(confirmation.email));
+  }
+
+  if (nextSharedWith.length > 0 && peerConfirmations.length === 0 && resolveTaskStatus(task.status, task.done) === "completed") {
+    task.status = "in_progress";
+    task.done = false;
+  }
+
+  const verificationState =
+    mode === "none"
+      ? "not_required"
+      : mode === "peer"
+        ? nextSharedWith.length > 0
+          ? peerConfirmations.length > 0
+            ? "verified"
+            : "pending"
+          : computePeerVerificationState(peerConfirmers, peerConfirmations)
+        : (() => {
+            const fallbackState = proofLabel ? "submitted" : "pending";
+            const normalizedState = normalizeVerificationState(body.verificationState ?? task.verification?.state, fallbackState);
+
+            if (!proofLabel && normalizedState === "submitted") {
+              return "pending";
+            }
+
+            return normalizedState;
+          })();
+
+  task.set("verification", {
+    mode,
+    state: verificationState,
+    proofLabel,
+    peerConfirmers,
+    peerConfirmations: peerConfirmations.map((confirmation) => ({
+      email: confirmation.email,
+      confirmedAt: new Date(confirmation.confirmedAt),
+    })),
+  });
+
   if (body.sharedWith !== undefined) {
-    task.sharedWith = normalizeEmailList(body.sharedWith);
+    task.sharedWith = nextSharedWith;
+  } else {
+    task.sharedWith = currentSharedWith;
   }
 
   await task.save();
@@ -201,6 +291,10 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
 
   if (!identity) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
+  }
+
+  if (identity.role !== "user") {
+    return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
   }
 
   const { taskId } = await context.params;

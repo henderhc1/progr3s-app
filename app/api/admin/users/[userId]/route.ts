@@ -1,26 +1,55 @@
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { UserModel } from "@/lib/models/User";
+import { TaskModel } from "@/lib/models/Task";
+import { getUserModel } from "@/lib/models/User";
 import { getSessionIdentity } from "@/lib/session";
+
+const DEFAULT_RESET_PASSWORD = "defaultpass";
 
 type UpdatePayload = {
   name?: string;
   role?: "user" | "admin";
   isActive?: boolean;
+  resetPassword?: boolean;
+  nextPassword?: string;
 };
 
-export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
+type UserUpdateData = {
+  name?: string;
+  role?: "user" | "admin";
+  isActive?: boolean;
+  passwordHash?: string;
+};
+
+async function requireAdminAndDb() {
   const identity = await getSessionIdentity();
 
   if (!identity || identity.role !== "admin") {
-    return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
+    return {
+      ok: false as const,
+      response: NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 }),
+    };
   }
 
   const db = await connectToDatabase();
 
   if (!db) {
-    return NextResponse.json({ ok: false, message: "Admin edits require MongoDB mode." }, { status: 400 });
+    return {
+      ok: false as const,
+      response: NextResponse.json({ ok: false, message: "Admin edits require MongoDB mode." }, { status: 400 }),
+    };
+  }
+
+  return { ok: true as const, identity, db };
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
+  const auth = await requireAdminAndDb();
+
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const { userId } = await context.params;
@@ -29,11 +58,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, message: "Invalid user id." }, { status: 400 });
   }
 
-  const body = (await request.json()) as UpdatePayload;
-  const updatePayload: UpdatePayload = {};
+  let body: UpdatePayload;
 
-  if (typeof body.name === "string" && body.name.trim().length >= 2) {
-    updatePayload.name = body.name.trim();
+  try {
+    body = (await request.json()) as UpdatePayload;
+  } catch {
+    return NextResponse.json({ ok: false, message: "Invalid request body." }, { status: 400 });
+  }
+
+  const updatePayload: UserUpdateData = {};
+
+  if (typeof body.name === "string") {
+    const name = body.name.trim();
+
+    if (name.length > 0 && (name.length < 2 || name.length > 80)) {
+      return NextResponse.json({ ok: false, message: "Name must be between 2 and 80 characters." }, { status: 400 });
+    }
+
+    if (name.length >= 2) {
+      updatePayload.name = name;
+    }
   }
 
   if (body.role === "admin" || body.role === "user") {
@@ -44,7 +88,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     updatePayload.isActive = body.isActive;
   }
 
-  const user = await UserModel.findByIdAndUpdate(userId, updatePayload, { new: true });
+  let temporaryPassword: string | null = null;
+
+  if (body.resetPassword === true) {
+    const nextPasswordRaw = typeof body.nextPassword === "string" ? body.nextPassword.trim() : "";
+    const nextPassword = nextPasswordRaw || DEFAULT_RESET_PASSWORD;
+
+    if (nextPassword.length < 8 || nextPassword.length > 72) {
+      return NextResponse.json(
+        { ok: false, message: "Password must be between 8 and 72 characters." },
+        { status: 400 },
+      );
+    }
+
+    updatePayload.passwordHash = await bcrypt.hash(nextPassword, 10);
+    temporaryPassword = nextPassword;
+  }
+
+  if (Object.keys(updatePayload).length === 0) {
+    return NextResponse.json({ ok: false, message: "No valid updates were provided." }, { status: 400 });
+  }
+
+  const userModel = getUserModel(auth.db);
+  const user = await userModel.findByIdAndUpdate(userId, updatePayload, { new: true });
 
   if (!user) {
     return NextResponse.json({ ok: false, message: "User not found." }, { status: 404 });
@@ -52,6 +118,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 
   return NextResponse.json({
     ok: true,
+    message: temporaryPassword
+      ? `Password reset for ${user.email}.`
+      : `User updated for ${user.email}.`,
+    temporaryPassword,
     user: {
       id: user._id.toString(),
       email: user.email,
@@ -59,5 +129,39 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
       role: user.role,
       isActive: user.isActive,
     },
+  });
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ userId: string }> }) {
+  const auth = await requireAdminAndDb();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const { userId } = await context.params;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return NextResponse.json({ ok: false, message: "Invalid user id." }, { status: 400 });
+  }
+
+  const userModel = getUserModel(auth.db);
+  const user = await userModel.findById(userId).lean();
+
+  if (!user) {
+    return NextResponse.json({ ok: false, message: "User not found." }, { status: 404 });
+  }
+
+  if (user.email === auth.identity.email) {
+    return NextResponse.json({ ok: false, message: "You cannot delete your own admin account." }, { status: 400 });
+  }
+
+  const taskDeletion = await TaskModel.deleteMany({ ownerEmail: user.email });
+  await userModel.findByIdAndDelete(userId);
+
+  return NextResponse.json({
+    ok: true,
+    message: `User ${user.email} deleted.`,
+    deletedTaskCount: taskDeletion.deletedCount ?? 0,
   });
 }

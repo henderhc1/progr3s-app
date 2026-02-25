@@ -6,6 +6,9 @@ Next.js full-stack productivity app with role-based access:
 - protected dashboard
 - admin console for user management
 - MongoDB-backed data (with fallback demo mode when DB is not configured)
+- multi-goal dashboard with status filters and completed folder
+- sharing workflow with cross-user approval queue (`Shared With You`)
+- month-aware completion calendar with streak marks and previous/next month navigation
 
 ## Stack
 
@@ -73,7 +76,13 @@ Open `http://localhost:3000`.
 ## Roles
 
 - `user`: dashboard access
-- `admin`: dashboard + `/admin` access
+- `admin`: `/admin` access only (goal dashboard and goal APIs are user-only)
+
+### Admin capabilities (current)
+- Create new users from `/admin` (default password: `defaultpass` unless custom value is provided in API).
+- Edit user name/role/active state.
+- Reset user passwords from `/admin` (defaults to `defaultpass`).
+- Delete users (and their tasks). Self-delete is blocked for the current admin session.
 
 ## Routes
 
@@ -95,8 +104,13 @@ Open `http://localhost:3000`.
 - `POST /api/dashboard/tasks`
 - `PATCH /api/dashboard/tasks/[taskId]`
 - `DELETE /api/dashboard/tasks/[taskId]`
+- `GET /api/dashboard/peer-confirmations`
+- `POST /api/dashboard/tasks/[taskId]/confirm`
+- `DELETE /api/dashboard/tasks/[taskId]/confirm`
 - `GET /api/admin/users` (admin-only)
+- `POST /api/admin/users` (admin-only)
 - `PATCH /api/admin/users/[userId]` (admin-only)
+- `DELETE /api/admin/users/[userId]` (admin-only)
 
 ## Data model (Mongo)
 
@@ -110,7 +124,29 @@ Open `http://localhost:3000`.
 ### Task
 - `ownerEmail`
 - `title`
-- `done`
+- `status` (`not_started` | `in_progress` | `completed`)
+- `done` (legacy compatibility flag)
+- `scheduledDays` (0..6 weekday values)
+- `completionDates` (`YYYY-MM-DD` date keys used for streak/calendar marks)
+- `sharedWith` (emails for share visibility list)
+- `verification`:
+  - `mode` (`none` | `photo` | `geolocation` | `peer`)
+  - `state` (`not_required` | `pending` | `submitted` | `verified`)
+  - `proofLabel` (test proof metadata, e.g. file name)
+  - `peerConfirmers` (emails allowed to confirm this goal)
+  - `peerConfirmations` (email + timestamp records of completed confirmations)
+
+## Sharing & Approval Rules
+
+- Owners can share a goal by email using the `Share` control on the goal card.
+- Shared recipients appear on the owner goal card (`Sharing with: ...`) and can be removed individually.
+- Switching verification mode away from `peer` clears `sharedWith` recipients and stops sharing for that goal.
+- Users see incoming shares in the `Shared With You` section (who shared and who else it is shared with).
+- Shared goals are completed by recipient approval (`Approve Shared Goal`) instead of owner-completed status changes.
+- When any shared recipient approves, the goal moves to completed and appears in the completed folder.
+- Completed goals can be deleted from both the active list and completed folder.
+- Completed filter behavior:
+  - `Completed` view routes completed goals into the completed folder section (no duplicate rendering in the main list).
 
 ## Scripts
 
@@ -123,3 +159,20 @@ Open `http://localhost:3000`.
 
 - Not classic MERN (no Express). This is Next.js + MongoDB full-stack.
 - Session cookie format is intentionally simple for learning/demo and should be hardened for production.
+
+## Troubleshooting Vercel Login
+
+If login shows a client-side network failure on a deployed domain:
+
+1. Confirm you are testing the correct project domain (especially if multiple Vercel projects exist).
+2. Open `https://<your-domain>/api/health/database`:
+   - `ok: true` means DB is reachable.
+   - `503`/`500` means env or network access is broken.
+3. Verify Vercel Production environment variables are set:
+   - `MONGODB_URI`
+   - `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`
+   - `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD`
+4. If using MongoDB Atlas, confirm the Vercel egress IP can connect (temporary test: allow `0.0.0.0/0`, then tighten later).
+5. Check browser DevTools `Network` for `POST /api/auth/login`:
+   - If there is no request, the browser/client blocked it before reaching Vercel.
+   - If request exists with non-JSON/5xx body, the login form now surfaces status and response text.

@@ -57,6 +57,23 @@ const taskSchema = new Schema(
         type: [String],
         default: [],
       },
+      peerConfirmations: {
+        type: [
+          {
+            email: {
+              type: String,
+              required: true,
+              lowercase: true,
+              trim: true,
+            },
+            confirmedAt: {
+              type: Date,
+              required: true,
+            },
+          },
+        ],
+        default: [],
+      },
     },
     sharedWith: {
       type: [String],
