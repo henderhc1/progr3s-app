@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   computeStreakDays,
@@ -291,6 +292,7 @@ function buildCalendarCells(cursor: Date): CalendarCell[] {
 }
 
 export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [peerRequests, setPeerRequests] = useState<PeerRequest[]>([]);
   const [draftTask, setDraftTask] = useState("");
@@ -307,6 +309,38 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
   const [pendingPeerRequestIds, setPendingPeerRequestIds] = useState<Record<string, boolean>>({});
+  const [isAuthRedirecting, setIsAuthRedirecting] = useState(false);
+
+  const handleAuthFailure = useCallback(
+    (status: number, message?: string): boolean => {
+      if (status !== 401 && status !== 403) {
+        return false;
+      }
+
+      if (isAuthRedirecting) {
+        return true;
+      }
+
+      setIsAuthRedirecting(true);
+
+      if (status === 403) {
+        setFeedback(message ?? "This account cannot access goals. Redirecting to admin.");
+        setTimeout(() => {
+          router.push("/admin");
+          router.refresh();
+        }, 200);
+        return true;
+      }
+
+      setFeedback(message ?? "Session expired. Redirecting to login.");
+      setTimeout(() => {
+        router.push("/login");
+        router.refresh();
+      }, 200);
+      return true;
+    },
+    [isAuthRedirecting, router],
+  );
 
   function setTaskPending(taskId: string, isPending: boolean) {
     setPendingTaskIds((current) => {
@@ -350,8 +384,12 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
 
   const loadSummary = useCallback(async () => {
     try {
-      const response = await fetch("/api/dashboard/summary");
+      const response = await fetch("/api/dashboard/summary", { credentials: "include" });
       const data = (await response.json()) as { ok: boolean; summary?: DashboardSummary; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok || !data.summary) {
         setFeedback(data.message ?? "Could not load dashboard summary.");
@@ -364,12 +402,16 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     } finally {
       setIsLoadingSummary(false);
     }
-  }, []);
+  }, [handleAuthFailure]);
 
   const loadTasks = useCallback(async () => {
     try {
-      const response = await fetch("/api/dashboard/tasks");
+      const response = await fetch("/api/dashboard/tasks", { credentials: "include" });
       const data = (await response.json()) as { ok: boolean; tasks?: TaskApiPayload[]; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok || !data.tasks) {
         setFeedback(data.message ?? "Could not load goals.");
@@ -384,12 +426,16 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     } finally {
       setIsLoadingTasks(false);
     }
-  }, []);
+  }, [handleAuthFailure]);
 
   const loadPeerRequests = useCallback(async () => {
     try {
-      const response = await fetch("/api/dashboard/peer-confirmations");
+      const response = await fetch("/api/dashboard/peer-confirmations", { credentials: "include" });
       const data = (await response.json()) as { ok: boolean; requests?: PeerRequestApiPayload[]; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok || !Array.isArray(data.requests)) {
         setPeerRequests([]);
@@ -402,7 +448,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     } finally {
       setIsLoadingPeerRequests(false);
     }
-  }, []);
+  }, [handleAuthFailure]);
 
   useEffect(() => {
     void loadTasks();
@@ -501,6 +547,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     try {
       const response = await fetch("/api/dashboard/tasks", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
@@ -510,6 +557,10 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       });
 
       const data = (await response.json()) as { ok: boolean; task?: TaskApiPayload; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok || !data.task) {
         setFeedback(data.message ?? "Could not add goal.");
@@ -545,10 +596,15 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     try {
       const response = await fetch(`/api/dashboard/tasks/${taskId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = (await response.json()) as { ok: boolean; task?: TaskApiPayload; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok || !data.task) {
         setFeedback(data.message ?? "Could not update goal.");
@@ -584,8 +640,15 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     setTaskPending(taskId, true);
 
     try {
-      const response = await fetch(`/api/dashboard/tasks/${taskId}`, { method: "DELETE" });
+      const response = await fetch(`/api/dashboard/tasks/${taskId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       const data = (await response.json()) as { ok: boolean; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok) {
         setFeedback(data.message ?? "Could not delete goal.");
@@ -613,8 +676,13 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     try {
       const response = await fetch(`/api/dashboard/tasks/${taskId}/confirm`, {
         method: "POST",
+        credentials: "include",
       });
       const data = (await response.json()) as { ok: boolean; message?: string };
+
+      if (handleAuthFailure(response.status, data.message)) {
+        return;
+      }
 
       if (!response.ok || !data.ok) {
         setFeedback(data.message ?? "Could not update peer confirmation.");
