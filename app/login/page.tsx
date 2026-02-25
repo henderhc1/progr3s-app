@@ -1,17 +1,13 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NavBar } from "@/components/ui/NavBar";
 import { LoginForm } from "@/components/ui/LoginForm";
-import { readEmailFromSession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getSessionIdentity } from "@/lib/session";
 
 export default async function LoginPage() {
-  // Prevent showing login form to users who already have a valid session.
-  const cookieStore = await cookies();
-  const rawSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const sessionEmail = readEmailFromSession(rawSession);
+  const identity = await getSessionIdentity();
 
-  if (sessionEmail) {
-    redirect("/dashboard");
+  if (identity) {
+    redirect(identity.role === "admin" ? "/admin" : "/dashboard");
   }
 
   // Server page wrapper around a client form component.

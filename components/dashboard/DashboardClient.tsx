@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   computeStreakDays,
   normalizeEmailList,
@@ -136,56 +136,7 @@ const DAYS: Array<{ value: number; short: string }> = [
   { value: 6, short: "Sat" },
 ];
 
-const starterTasks: Task[] = [
-  {
-    _id: "starter-1",
-    title: "Review roadmap for next sprint",
-    status: "not_started",
-    done: false,
-    scheduledDays: [1, 3, 5],
-    completionDates: [],
-    verification: {
-      mode: "none",
-      state: "not_required",
-      proofLabel: "",
-      peerConfirmers: [],
-      peerConfirmations: [],
-    },
-    sharedWith: [],
-  },
-  {
-    _id: "starter-2",
-    title: "Ship one frontend polish PR",
-    status: "completed",
-    done: true,
-    scheduledDays: [2, 4],
-    completionDates: [toLocalDateKey()],
-    verification: {
-      mode: "photo",
-      state: "submitted",
-      proofLabel: "starter-proof.jpg",
-      peerConfirmers: [],
-      peerConfirmations: [],
-    },
-    sharedWith: ["teammate@progr3s.dev"],
-  },
-  {
-    _id: "starter-3",
-    title: "Write API notes for auth flow",
-    status: "in_progress",
-    done: false,
-    scheduledDays: [1, 2, 3],
-    completionDates: [],
-    verification: {
-      mode: "peer",
-      state: "pending",
-      proofLabel: "",
-      peerConfirmers: ["admin@progr3s.dev"],
-      peerConfirmations: [],
-    },
-    sharedWith: [],
-  },
-];
+const EMPTY_TASKS: Task[] = [];
 
 function normalizeTask(payload: TaskApiPayload): Task {
   const status = resolveTaskStatus(payload.status, payload.done);
@@ -309,7 +260,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
   const [pendingPeerRequestIds, setPendingPeerRequestIds] = useState<Record<string, boolean>>({});
-  const [isAuthRedirecting, setIsAuthRedirecting] = useState(false);
+  const authRedirectingRef = useRef(false);
 
   const handleAuthFailure = useCallback(
     (status: number, message?: string): boolean => {
@@ -317,11 +268,11 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
         return false;
       }
 
-      if (isAuthRedirecting) {
+      if (authRedirectingRef.current) {
         return true;
       }
 
-      setIsAuthRedirecting(true);
+      authRedirectingRef.current = true;
 
       if (status === 403) {
         setFeedback(message ?? "This account cannot access goals. Redirecting to admin.");
@@ -339,7 +290,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       }, 200);
       return true;
     },
-    [isAuthRedirecting, router],
+    [router],
   );
 
   function setTaskPending(taskId: string, isPending: boolean) {
@@ -415,14 +366,14 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
 
       if (!response.ok || !data.ok || !data.tasks) {
         setFeedback(data.message ?? "Could not load goals.");
-        setTasks(starterTasks);
+        setTasks(EMPTY_TASKS);
         return;
       }
 
       setTasks(data.tasks.map(normalizeTask));
     } catch {
       setFeedback("Network issue while loading goals.");
-      setTasks(starterTasks);
+      setTasks(EMPTY_TASKS);
     } finally {
       setIsLoadingTasks(false);
     }

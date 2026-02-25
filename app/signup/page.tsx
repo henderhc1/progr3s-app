@@ -1,16 +1,13 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NavBar } from "@/components/ui/NavBar";
 import { SignupForm } from "@/components/ui/SignupForm";
-import { readEmailFromSession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getSessionIdentity } from "@/lib/session";
 
 export default async function SignupPage() {
-  const cookieStore = await cookies();
-  const rawSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const sessionEmail = readEmailFromSession(rawSession);
+  const identity = await getSessionIdentity();
 
-  if (sessionEmail) {
-    redirect("/dashboard");
+  if (identity) {
+    redirect(identity.role === "admin" ? "/admin" : "/dashboard");
   }
 
   return (

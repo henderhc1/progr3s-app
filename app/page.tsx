@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { InfoCard } from "@/components/ui/InfoCard";
 import { HomeWelcomeTransition } from "@/components/ui/HomeWelcomeTransition";
 import { NavBar } from "@/components/ui/NavBar";
 import { ProgressPlayground } from "@/components/ui/ProgressPlayground";
-import { readEmailFromSession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getSessionIdentity } from "@/lib/session";
 
 const features = [
   {
@@ -22,17 +21,15 @@ const features = [
 ];
 
 export default async function Home() {
-  // Server-side cookie read lets us adapt nav based on login state.
-  const cookieStore = await cookies();
-  const rawSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const sessionEmail = readEmailFromSession(rawSession);
-  const hasSession = !!sessionEmail;
+  const identity = await getSessionIdentity();
+  const hasSession = !!identity;
+  const dashboardHref = identity?.role === "admin" ? "/admin" : "/dashboard";
 
   // Home stays a server component while rendering client components below.
   return (
     <HomeWelcomeTransition>
       <main className="page-wrap">
-        <NavBar ctaLabel={hasSession ? "Open Dashboard" : "Login"} ctaHref={hasSession ? "/dashboard" : "/login"} />
+        <NavBar ctaLabel={hasSession ? "Open Dashboard" : "Login"} ctaHref={hasSession ? dashboardHref : "/login"} />
 
         <section className="hero shell-card">
           <div>
@@ -43,7 +40,7 @@ export default async function Home() {
             </p>
 
             <div className="hero__cta">
-              <Link href={hasSession ? "/dashboard" : "/signup"} className="btn btn--primary">
+              <Link href={hasSession ? dashboardHref : "/signup"} className="btn btn--primary">
                 {hasSession ? "Open dashboard" : "Create account"}
               </Link>
               <Link href="/login" className="btn btn--ghost">

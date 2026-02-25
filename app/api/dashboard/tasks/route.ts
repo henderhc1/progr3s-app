@@ -137,7 +137,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     if (identity.email !== DEMO_USER.email) {
@@ -147,7 +153,14 @@ export async function GET() {
     return NextResponse.json({ ok: true, tasks: demoTasks.map(mapTask) });
   }
 
-  const tasks = await TaskModel.find({ ownerEmail: identity.email }).sort({ createdAt: -1 }).lean();
+  const tasks = await TaskModel.find({ ownerEmail: identity.email })
+    .sort({ createdAt: -1 })
+    .lean()
+    .catch(() => null);
+
+  if (!tasks) {
+    return NextResponse.json({ ok: false, message: "Could not load goals right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -193,7 +206,13 @@ export async function POST(request: Request) {
 
   const completionDates = status === "completed" ? [toLocalDateKey()] : [];
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     if (identity.email !== DEMO_USER.email) {
@@ -236,7 +255,11 @@ export async function POST(request: Request) {
       peerConfirmations: [],
     },
     sharedWith,
-  });
+  }).catch(() => null);
+
+  if (!task) {
+    return NextResponse.json({ ok: false, message: "Could not create goal right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,

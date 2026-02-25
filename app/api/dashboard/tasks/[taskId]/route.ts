@@ -96,7 +96,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
   const { taskId } = await context.params;
   const body = (await request.json()) as UpdateTaskPayload;
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     if (identity.email !== DEMO_USER.email) {
@@ -143,7 +149,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     return NextResponse.json({ ok: false, message: "Invalid task id." }, { status: 400 });
   }
 
-  const task = await TaskModel.findOne({ _id: taskId, ownerEmail: identity.email });
+  const task = await TaskModel.findOne({ _id: taskId, ownerEmail: identity.email }).catch(() => null);
 
   if (!task) {
     return NextResponse.json({ ok: false, message: "Task not found." }, { status: 404 });
@@ -278,7 +284,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     task.sharedWith = currentSharedWith;
   }
 
-  await task.save();
+  const saveResult = await task.save().catch(() => null);
+
+  if (!saveResult) {
+    return NextResponse.json({ ok: false, message: "Could not update goal right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -298,7 +308,13 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
   }
 
   const { taskId } = await context.params;
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     if (identity.email !== DEMO_USER.email) {
@@ -312,6 +328,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
     return NextResponse.json({ ok: false, message: "Invalid task id." }, { status: 400 });
   }
 
-  await TaskModel.findOneAndDelete({ _id: taskId, ownerEmail: identity.email });
+  await TaskModel.findOneAndDelete({ _id: taskId, ownerEmail: identity.email }).catch(() => null);
   return NextResponse.json({ ok: true });
 }

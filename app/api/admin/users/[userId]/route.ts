@@ -66,6 +66,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, message: "Invalid request body." }, { status: 400 });
   }
 
+  const userModel = getUserModel(auth.db);
+  const targetUser = await userModel.findById(userId, { email: 1 }).lean();
+
+  if (!targetUser) {
+    return NextResponse.json({ ok: false, message: "User not found." }, { status: 404 });
+  }
+
+  const isSelfUpdate = targetUser.email === auth.identity.email;
+
+  if (isSelfUpdate && body.role === "user") {
+    return NextResponse.json(
+      { ok: false, message: "You cannot remove your own admin role." },
+      { status: 400 },
+    );
+  }
+
+  if (isSelfUpdate && body.isActive === false) {
+    return NextResponse.json(
+      { ok: false, message: "You cannot deactivate your own admin account." },
+      { status: 400 },
+    );
+  }
+
   const updatePayload: UserUpdateData = {};
 
   if (typeof body.name === "string") {
@@ -109,7 +132,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, message: "No valid updates were provided." }, { status: 400 });
   }
 
-  const userModel = getUserModel(auth.db);
   const user = await userModel.findByIdAndUpdate(userId, updatePayload, { new: true });
 
   if (!user) {

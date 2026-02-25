@@ -19,7 +19,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: "Dashboard goals are user-only." }, { status: 403 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     return NextResponse.json({ ok: true, requests: [] });
@@ -41,7 +47,12 @@ export async function GET() {
     },
   )
     .sort({ updatedAt: -1 })
-    .lean();
+    .lean()
+    .catch(() => null);
+
+  if (!requests) {
+    return NextResponse.json({ ok: false, message: "Could not load shared goals right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,

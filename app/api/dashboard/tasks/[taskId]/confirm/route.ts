@@ -68,13 +68,19 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     return NextResponse.json({ ok: false, message: "Invalid task id." }, { status: 400 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     return NextResponse.json({ ok: false, message: "Share approvals require MongoDB mode." }, { status: 503 });
   }
 
-  const task = await resolveSharedTask(taskId, identity.email);
+  const task = await resolveSharedTask(taskId, identity.email).catch(() => null);
 
   if (!task) {
     return NextResponse.json({ ok: false, message: "Shared goal not found." }, { status: 404 });
@@ -119,7 +125,11 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     task.completionDates = completionDates;
   }
 
-  await task.save();
+  const saveResult = await task.save().catch(() => null);
+
+  if (!saveResult) {
+    return NextResponse.json({ ok: false, message: "Could not update shared goal right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -144,13 +154,19 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
     return NextResponse.json({ ok: false, message: "Invalid task id." }, { status: 400 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     return NextResponse.json({ ok: false, message: "Share approvals require MongoDB mode." }, { status: 503 });
   }
 
-  const task = await resolveSharedTask(taskId, identity.email);
+  const task = await resolveSharedTask(taskId, identity.email).catch(() => null);
 
   if (!task) {
     return NextResponse.json({ ok: false, message: "Shared goal not found." }, { status: 404 });
@@ -172,7 +188,11 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
     })),
   });
 
-  await task.save();
+  const saveResult = await task.save().catch(() => null);
+
+  if (!saveResult) {
+    return NextResponse.json({ ok: false, message: "Could not update shared goal right now." }, { status: 503 });
+  }
 
   return NextResponse.json({
     ok: true,

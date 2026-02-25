@@ -43,7 +43,19 @@ export async function GET() {
     );
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Could not connect to database right now.",
+      },
+      { status: 503 },
+    );
+  }
 
   if (!db && identity.email !== DEMO_USER.email) {
     return NextResponse.json(
@@ -63,7 +75,20 @@ export async function GET() {
     const tasks = await TaskModel.find(
       { ownerEmail: identity.email },
       { status: 1, done: 1, completionDates: 1 },
-    ).lean();
+    )
+      .lean()
+      .catch(() => null);
+
+    if (!tasks) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Could not load summary data right now.",
+        },
+        { status: 503 },
+      );
+    }
+
     const today = toLocalDateKey();
     const completionDateSet = new Set<string>();
 
