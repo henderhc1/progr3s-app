@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   computeStreakDays,
@@ -292,7 +291,6 @@ function buildCalendarCells(cursor: Date): CalendarCell[] {
 }
 
 export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
-  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [peerRequests, setPeerRequests] = useState<PeerRequest[]>([]);
   const [draftTask, setDraftTask] = useState("");
@@ -426,11 +424,11 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
 
       void loadTasks();
       void loadPeerRequests();
-      router.refresh();
+      void loadSummary();
     }, 20000);
 
     return () => window.clearInterval(intervalId);
-  }, [loadPeerRequests, loadTasks, router]);
+  }, [loadPeerRequests, loadSummary, loadTasks]);
 
   const completedCount = useMemo(() => tasks.filter((task) => task.status === "completed").length, [tasks]);
   const progressPercent = useMemo(() => {
@@ -537,7 +535,6 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     successMessage: string,
     refreshSummary = false,
     refreshPeerRequests = false,
-    refreshPage = false,
   ) {
     if (pendingTaskIds[taskId]) {
       return;
@@ -567,10 +564,6 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
 
       if (refreshPeerRequests) {
         void loadPeerRequests();
-      }
-
-      if (refreshPage) {
-        router.refresh();
       }
     } catch {
       setFeedback("Network issue while updating goal.");
@@ -632,7 +625,6 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       void loadPeerRequests();
       void loadTasks();
       void loadSummary();
-      router.refresh();
     } catch {
       setFeedback("Network issue while updating peer confirmation.");
     } finally {
@@ -664,7 +656,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       return;
     }
 
-    void patchTask(task._id, { sharedWith: next }, "Sharing list updated.", false, true, true);
+    void patchTask(task._id, { sharedWith: next }, "Sharing list updated.", false, true);
   }
 
   function removeSharedRecipient(task: Task, recipientEmail: string) {
@@ -674,7 +666,6 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       { sharedWith: remainingRecipients },
       "Shared recipient removed from goal.",
       false,
-      true,
       true,
     );
   }
