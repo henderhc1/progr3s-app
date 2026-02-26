@@ -3,9 +3,12 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
 import {
+  mergeVerificationModes,
   normalizeEmailList,
+  normalizeGoalTasks,
   normalizePeerConfirmations,
   resolveTaskStatus,
+  resolveVerificationModes,
 } from "@/lib/tasks";
 
 export async function GET() {
@@ -42,6 +45,7 @@ export async function GET() {
       status: 1,
       done: 1,
       sharedWith: 1,
+      goalTasks: 1,
       verification: 1,
       updatedAt: 1,
     },
@@ -61,6 +65,39 @@ export async function GET() {
       const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
         peerConfirmers.includes(confirmation.email),
       );
+      const verificationModes = mergeVerificationModes(
+        resolveVerificationModes(task.verification?.modes, task.verification?.mode),
+        ["peer"],
+      );
+      const rawVerificationProofLabel =
+        typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
+      const geolocationLabelRaw =
+        typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
+      const geolocationLabel = geolocationLabelRaw || (rawVerificationProofLabel.startsWith("geo:") ? rawVerificationProofLabel : "");
+      const verificationProofLabel =
+        geolocationLabel && rawVerificationProofLabel === geolocationLabel ? "" : rawVerificationProofLabel;
+      const proofUploads = normalizeGoalTasks(task.goalTasks)
+        .filter((goalTask) => !!goalTask.proofImageDataUrl)
+        .map((goalTask) => ({
+          title: goalTask.title,
+          proofLabel: goalTask.proofLabel,
+          proofImageDataUrl: goalTask.proofImageDataUrl,
+          completedAt: goalTask.completedAt,
+        }));
+      const verificationProofImageDataUrl =
+        typeof task.verification?.proofImageDataUrl === "string" &&
+        task.verification.proofImageDataUrl.startsWith("data:image/")
+          ? task.verification.proofImageDataUrl
+          : "";
+
+      if (verificationProofImageDataUrl) {
+        proofUploads.unshift({
+          title: "Goal proof upload",
+          proofLabel: verificationProofLabel,
+          proofImageDataUrl: verificationProofImageDataUrl,
+          completedAt: "",
+        });
+      }
 
       return {
         _id: task._id.toString(),
@@ -68,11 +105,14 @@ export async function GET() {
         title: task.title,
         status: resolveTaskStatus(task.status, task.done),
         verification: {
-          mode: "peer",
+          mode: verificationModes[0] ?? "none",
+          modes: verificationModes,
           state: peerConfirmations.length > 0 ? "verified" : "pending",
+          geolocationLabel,
           peerConfirmers,
           peerConfirmations,
         },
+        proofUploads,
         confirmedByCurrentUser: peerConfirmations.some((confirmation) => confirmation.email === identity.email),
       };
     }),

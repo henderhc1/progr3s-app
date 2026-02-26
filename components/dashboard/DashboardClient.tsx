@@ -1,15 +1,21 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActiveVerificationMode,
+  computeVerificationState,
+  GoalTaskItem,
+  mergeVerificationModes,
   computeStreakDays,
   normalizeEmailList,
+  normalizeGoalTasks,
   normalizePeerConfirmations,
   normalizeScheduledDays,
   normalizeTaskStatus,
-  normalizeVerificationMode,
   normalizeVerificationState,
+  resolveVerificationModes,
   resolveTaskStatus,
   TaskFilter,
   TaskStatus,
@@ -33,8 +39,11 @@ type PeerConfirmation = {
 
 type TaskVerification = {
   mode: VerificationMode;
+  modes: ActiveVerificationMode[];
   state: VerificationState;
   proofLabel: string;
+  proofImageDataUrl: string;
+  geolocationLabel: string;
   peerConfirmers: string[];
   peerConfirmations: PeerConfirmation[];
 };
@@ -44,6 +53,7 @@ type Task = {
   title: string;
   status: TaskStatus;
   done: boolean;
+  goalTasks: GoalTaskItem[];
   scheduledDays: number[];
   completionDates: string[];
   verification: TaskVerification;
@@ -55,16 +65,27 @@ type TaskApiPayload = {
   title?: string;
   status?: string;
   done?: boolean;
+  goalTasks?: unknown;
   scheduledDays?: unknown;
   completionDates?: unknown;
   verification?: {
     mode?: string;
+    modes?: unknown;
     state?: string;
     proofLabel?: string;
+    proofImageDataUrl?: string;
+    geolocationLabel?: string;
     peerConfirmers?: unknown;
     peerConfirmations?: unknown;
   } | null;
   sharedWith?: unknown;
+};
+
+type ProofUpload = {
+  title: string;
+  proofLabel: string;
+  proofImageDataUrl: string;
+  completedAt: string;
 };
 
 type PeerRequest = {
@@ -73,10 +94,14 @@ type PeerRequest = {
   title: string;
   status: TaskStatus;
   verification: {
+    mode: VerificationMode;
+    modes: ActiveVerificationMode[];
     state: VerificationState;
+    geolocationLabel: string;
     peerConfirmers: string[];
     peerConfirmations: PeerConfirmation[];
   };
+  proofUploads: ProofUpload[];
   confirmedByCurrentUser: boolean;
 };
 
@@ -87,10 +112,19 @@ type PeerRequestApiPayload = {
   status?: string;
   done?: boolean;
   verification?: {
+    mode?: string;
+    modes?: unknown;
     state?: string;
+    geolocationLabel?: string;
     peerConfirmers?: unknown;
     peerConfirmations?: unknown;
   } | null;
+  proofUploads?: Array<{
+    title?: string;
+    proofLabel?: string;
+    proofImageDataUrl?: string;
+    completedAt?: string;
+  }>;
   confirmedByCurrentUser?: boolean;
 };
 
@@ -119,11 +153,10 @@ const FILTER_OPTIONS: Array<{ value: TaskFilter; label: string }> = [
   { value: "completed", label: "Completed" },
 ];
 
-const VERIFICATION_OPTIONS: Array<{ value: VerificationMode; label: string }> = [
-  { value: "none", label: "No verification" },
-  { value: "photo", label: "Photo proof (test)" },
-  { value: "geolocation", label: "Geolocation (test)" },
-  { value: "peer", label: "Peer confirmation" },
+const VERIFICATION_OPTIONS: Array<{ value: ActiveVerificationMode; label: string }> = [
+  { value: "photo", label: "Photo proof" },
+  { value: "geolocation", label: "Geolocation" },
+  { value: "peer", label: "Peer approval" },
 ];
 
 const DAYS: Array<{ value: number; short: string }> = [
@@ -140,41 +173,66 @@ const EMPTY_TASKS: Task[] = [];
 
 function normalizeTask(payload: TaskApiPayload): Task {
   const status = resolveTaskStatus(payload.status, payload.done);
-  const verificationMode = normalizeVerificationMode(payload.verification?.mode);
-  const peerConfirmers = normalizeEmailList(payload.verification?.peerConfirmers);
+  const sharedWith = normalizeEmailList(payload.sharedWith);
+  const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(payload.verification?.peerConfirmers);
   const peerConfirmations = normalizePeerConfirmations(payload.verification?.peerConfirmations).filter((confirmation) =>
     peerConfirmers.includes(confirmation.email),
   );
+  const rawProofLabel = payload.verification?.proofLabel?.trim() ?? "";
+  const rawGeolocationLabel =
+    typeof payload.verification?.geolocationLabel === "string" ? payload.verification.geolocationLabel.trim() : "";
+  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
+  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
+  const proofImageDataUrl =
+    typeof payload.verification?.proofImageDataUrl === "string" &&
+    payload.verification.proofImageDataUrl.startsWith("data:image/")
+      ? payload.verification.proofImageDataUrl
+      : "";
+  const verificationModes = mergeVerificationModes(
+    resolveVerificationModes(payload.verification?.modes, payload.verification?.mode),
+    sharedWith.length > 0 ? ["peer"] : [],
+  );
   const verificationState =
-    verificationMode === "none"
-      ? "not_required"
-      : verificationMode === "peer"
-        ? peerConfirmers.length === 0
-          ? "not_required"
-          : peerConfirmations.length >= peerConfirmers.length
-            ? "verified"
-            : peerConfirmations.length > 0
-              ? "submitted"
-              : "pending"
-        : normalizeVerificationState(payload.verification?.state, "pending");
+    payload.verification?.state && typeof payload.verification.state === "string"
+      ? normalizeVerificationState(
+          payload.verification.state,
+          computeVerificationState({
+            modes: verificationModes,
+            photoProofImageDataUrl: proofImageDataUrl,
+            geolocationLabel,
+            peerConfirmers,
+            peerConfirmations,
+          }),
+        )
+      : computeVerificationState({
+          modes: verificationModes,
+          photoProofImageDataUrl: proofImageDataUrl,
+          geolocationLabel,
+          peerConfirmers,
+          peerConfirmations,
+        });
 
   return {
     _id: payload._id ?? `fallback-${Date.now()}`,
     title: payload.title?.trim() || "Untitled goal",
     status,
     done: status === "completed",
+    goalTasks: normalizeGoalTasks(payload.goalTasks),
     scheduledDays: normalizeScheduledDays(payload.scheduledDays),
     completionDates: Array.isArray(payload.completionDates)
       ? payload.completionDates.filter((value): value is string => typeof value === "string")
       : [],
     verification: {
-      mode: verificationMode,
+      mode: verificationModes[0] ?? "none",
+      modes: verificationModes,
       state: verificationState,
-      proofLabel: payload.verification?.proofLabel?.trim() ?? "",
+      proofLabel,
+      proofImageDataUrl,
+      geolocationLabel,
       peerConfirmers,
       peerConfirmations,
     },
-    sharedWith: normalizeEmailList(payload.sharedWith),
+    sharedWith,
   };
 }
 
@@ -184,6 +242,29 @@ function normalizePeerRequest(payload: PeerRequestApiPayload): PeerRequest {
   const peerConfirmations = normalizePeerConfirmations(payload.verification?.peerConfirmations).filter((confirmation) =>
     peerConfirmers.includes(confirmation.email),
   );
+  const geolocationLabel =
+    typeof payload.verification?.geolocationLabel === "string" ? payload.verification.geolocationLabel.trim() : "";
+  const verificationModes = mergeVerificationModes(
+    resolveVerificationModes(payload.verification?.modes, payload.verification?.mode),
+    ["peer"],
+  );
+  const proofUploads = Array.isArray(payload.proofUploads)
+    ? payload.proofUploads
+        .filter(
+          (upload): upload is NonNullable<PeerRequestApiPayload["proofUploads"]>[number] =>
+            typeof upload === "object" && upload !== null,
+        )
+        .map((upload) => ({
+          title: typeof upload.title === "string" ? upload.title.trim() : "Proof",
+          proofLabel: typeof upload.proofLabel === "string" ? upload.proofLabel.trim() : "",
+          proofImageDataUrl:
+            typeof upload.proofImageDataUrl === "string" && upload.proofImageDataUrl.startsWith("data:image/")
+              ? upload.proofImageDataUrl
+              : "",
+          completedAt: typeof upload.completedAt === "string" ? upload.completedAt.trim() : "",
+        }))
+        .filter((upload) => !!upload.proofImageDataUrl)
+    : [];
 
   return {
     _id: payload._id ?? `peer-${Date.now()}`,
@@ -191,10 +272,14 @@ function normalizePeerRequest(payload: PeerRequestApiPayload): PeerRequest {
     title: payload.title?.trim() || "Untitled goal",
     status,
     verification: {
+      mode: verificationModes[0] ?? "none",
+      modes: verificationModes,
       state: normalizeVerificationState(payload.verification?.state, "pending"),
+      geolocationLabel,
       peerConfirmers,
       peerConfirmations,
     },
+    proofUploads,
     confirmedByCurrentUser: payload.confirmedByCurrentUser === true,
   };
 }
@@ -242,6 +327,24 @@ function buildCalendarCells(cursor: Date): CalendarCell[] {
   return cells;
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Could not read file."));
+    };
+
+    reader.onerror = () => reject(new Error("Could not read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -260,6 +363,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
   const [pendingPeerRequestIds, setPendingPeerRequestIds] = useState<Record<string, boolean>>({});
+  const [subtaskDraftByTaskId, setSubtaskDraftByTaskId] = useState<Record<string, string>>({});
   const authRedirectingRef = useRef(false);
 
   const handleAuthFailure = useCallback(
@@ -449,6 +553,53 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
   }, [tasks]);
 
   const streakFromTasks = useMemo(() => computeStreakDays(completionDateSet), [completionDateSet]);
+  const verificationSummary = useMemo(() => {
+    let photoRequired = 0;
+    let photoSubmitted = 0;
+    let geoRequired = 0;
+    let geoSubmitted = 0;
+    let peerRequired = 0;
+    let peerVerified = 0;
+    let sharedRecipientCount = 0;
+
+    for (const task of tasks) {
+      if (task.verification.modes.includes("photo")) {
+        photoRequired += 1;
+
+        if (task.verification.proofImageDataUrl) {
+          photoSubmitted += 1;
+        }
+      }
+
+      if (task.verification.modes.includes("geolocation")) {
+        geoRequired += 1;
+
+        if (task.verification.geolocationLabel) {
+          geoSubmitted += 1;
+        }
+      }
+
+      if (task.verification.modes.includes("peer")) {
+        peerRequired += 1;
+
+        if (task.verification.peerConfirmations.length > 0) {
+          peerVerified += 1;
+        }
+      }
+
+      sharedRecipientCount += task.sharedWith.length;
+    }
+
+    return {
+      photoRequired,
+      photoSubmitted,
+      geoRequired,
+      geoSubmitted,
+      peerRequired,
+      peerVerified,
+      sharedRecipientCount,
+    };
+  }, [tasks]);
 
   const visibleTasks = useMemo(() => {
     if (filter === "active") {
@@ -480,6 +631,14 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     [calendarCursor],
   );
   const calendarCells = useMemo(() => buildCalendarCells(calendarCursor), [calendarCursor]);
+
+  useEffect(() => {
+    setSubtaskDraftByTaskId((current) => {
+      const validTaskIds = new Set(tasks.map((task) => task._id));
+      const next = Object.fromEntries(Object.entries(current).filter(([taskId]) => validTaskIds.has(taskId)));
+      return Object.keys(next).length === Object.keys(current).length ? current : next;
+    });
+  }, [tasks]);
 
   async function addTask() {
     if (isAddingTask) {
@@ -537,9 +696,9 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     successMessage: string,
     refreshSummary = false,
     refreshPeerRequests = false,
-  ) {
+  ): Promise<boolean> {
     if (pendingTaskIds[taskId]) {
-      return;
+      return false;
     }
 
     setTaskPending(taskId, true);
@@ -554,12 +713,12 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       const data = (await response.json()) as { ok: boolean; task?: TaskApiPayload; message?: string };
 
       if (handleAuthFailure(response.status, data.message)) {
-        return;
+        return false;
       }
 
       if (!response.ok || !data.ok || !data.task) {
         setFeedback(data.message ?? "Could not update goal.");
-        return;
+        return false;
       }
 
       setTasks((current) => current.map((task) => (task._id === taskId ? normalizeTask(data.task!) : task)));
@@ -572,8 +731,11 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       if (refreshPeerRequests) {
         void loadPeerRequests();
       }
+
+      return true;
     } catch {
       setFeedback("Network issue while updating goal.");
+      return false;
     } finally {
       setTaskPending(taskId, false);
     }
@@ -660,11 +822,26 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const label = `geo:${position.coords.latitude.toFixed(4)},${position.coords.longitude.toFixed(4)}`;
-        void patchTask(taskId, { verificationProofLabel: label, verificationState: "submitted" }, "Geolocation captured.");
+        void patchTask(taskId, { verificationGeoLabel: label }, "Geolocation captured.");
       },
       () => setFeedback("Could not capture geolocation proof."),
       { timeout: 10000 },
     );
+  }
+
+  function toggleVerificationMode(task: Task, mode: ActiveVerificationMode) {
+    const nextModes = task.verification.modes.includes(mode)
+      ? task.verification.modes.filter((value) => value !== mode)
+      : mergeVerificationModes(task.verification.modes, [mode]);
+    const payload: Record<string, unknown> = { verificationModes: nextModes };
+    let successMessage = `${mode} verification updated.`;
+
+    if (mode === "peer" && !nextModes.includes("peer") && task.sharedWith.length > 0) {
+      payload.sharedWith = [];
+      successMessage = "Peer verification disabled and sharing removed.";
+    }
+
+    void patchTask(task._id, payload, successMessage, false, true);
   }
 
   function promptShare(task: Task) {
@@ -675,18 +852,130 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       return;
     }
 
-    void patchTask(task._id, { sharedWith: next }, "Sharing list updated.", false, true);
+    const recipients = normalizeEmailList(next);
+    const payload: Record<string, unknown> = { sharedWith: next };
+
+    if (recipients.length > 0) {
+      payload.verificationModes = mergeVerificationModes(task.verification.modes, ["peer"]);
+    } else if (task.verification.modes.includes("peer")) {
+      payload.verificationModes = task.verification.modes.filter((mode) => mode !== "peer");
+    }
+
+    void patchTask(task._id, payload, "Sharing list updated.", false, true);
   }
 
   function removeSharedRecipient(task: Task, recipientEmail: string) {
     const remainingRecipients = task.sharedWith.filter((email) => email !== recipientEmail);
+    const payload: Record<string, unknown> = { sharedWith: remainingRecipients };
+
+    if (remainingRecipients.length === 0 && task.verification.modes.includes("peer")) {
+      payload.verificationModes = task.verification.modes.filter((mode) => mode !== "peer");
+    }
+
     void patchTask(
       task._id,
-      { sharedWith: remainingRecipients },
+      payload,
       "Shared recipient removed from goal.",
       false,
       true,
     );
+  }
+
+  function setSubtaskDraft(taskId: string, value: string) {
+    setSubtaskDraftByTaskId((current) => ({ ...current, [taskId]: value }));
+  }
+
+  async function addGoalSubtask(task: Task) {
+    const title = (subtaskDraftByTaskId[task._id] ?? "").trim();
+
+    if (title.length < 2 || title.length > 120) {
+      setFeedback("Subtask title must be between 2 and 120 characters.");
+      return;
+    }
+
+    const didUpdate = await patchTask(
+      task._id,
+      { addGoalTask: { title } },
+      "Subtask added.",
+      true,
+      true,
+    );
+
+    if (didUpdate) {
+      setSubtaskDraft(task._id, "");
+    }
+  }
+
+  function toggleGoalSubtaskCompletion(task: Task, goalTask: GoalTaskItem) {
+    void patchTask(
+      task._id,
+      {
+        updateGoalTask: {
+          goalTaskId: goalTask.id,
+          done: !goalTask.done,
+        },
+      },
+      goalTask.done ? "Subtask reopened." : "Subtask completed.",
+      true,
+      true,
+    );
+  }
+
+  function removeGoalSubtask(task: Task, goalTaskId: string) {
+    void patchTask(task._id, { removeGoalTaskId: goalTaskId }, "Subtask removed.", true, true);
+  }
+
+  async function uploadGoalTaskProof(task: Task, goalTask: GoalTaskItem, file: File) {
+    if (!file.type.startsWith("image/")) {
+      setFeedback("Only image files can be uploaded as proof.");
+      return;
+    }
+
+    if (file.size > 1_500_000) {
+      setFeedback("Proof image is too large. Use a file under 1.5MB.");
+      return;
+    }
+
+    try {
+      const proofImageDataUrl = await readFileAsDataUrl(file);
+      await patchTask(
+        task._id,
+        {
+          updateGoalTask: {
+            goalTaskId: goalTask.id,
+            proofLabel: file.name,
+            proofImageDataUrl,
+          },
+        },
+        "Subtask proof uploaded.",
+        false,
+        true,
+      );
+    } catch {
+      setFeedback("Could not process subtask proof image.");
+    }
+  }
+
+  function reopenCompletedGoal(task: Task) {
+    const completedSubtask = task.goalTasks.find((goalTask) => goalTask.done);
+
+    if (completedSubtask) {
+      void patchTask(
+        task._id,
+        {
+          updateGoalTask: {
+            goalTaskId: completedSubtask.id,
+            done: false,
+          },
+        },
+        "Goal moved back to in progress.",
+        true,
+        true,
+      );
+      return;
+    }
+
+    void patchTask(task._id, { status: "in_progress" }, "Goal moved back to in progress.", true, true);
   }
 
   return (
@@ -700,7 +989,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
         <p className="dashboard-feedback">{feedback}</p>
       </article>
 
-      <article className="shell-card dashboard-card">
+      <article className="shell-card dashboard-card dashboard-card--goals">
         <h2>Your Goals</h2>
 
         <div className="dashboard-task-input">
@@ -765,7 +1054,18 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
         {!isLoadingTasks && (
           <>
             <ul className="task-list">
-              {mainTasks.map((task) => (
+              {mainTasks.map((task) => {
+                const totalGoalTaskCount = task.goalTasks.length;
+                const completedGoalTaskCount = task.goalTasks.filter((goalTask) => goalTask.done).length;
+                const goalTaskProgressPercent =
+                  totalGoalTaskCount > 0
+                    ? Math.round((completedGoalTaskCount / totalGoalTaskCount) * 100)
+                    : task.status === "completed"
+                      ? 100
+                      : 0;
+                const isSubtaskDriven = totalGoalTaskCount > 0;
+
+                return (
                   <li
                     key={task._id}
                     className={`task-item task-item--${task.status.replace("_", "-")}${pendingTaskIds[task._id] ? " is-pending" : ""}`}
@@ -777,10 +1077,116 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                       </span>
                     </div>
 
+                    <div className="goal-progress" aria-label={`${task.title} goal-task completion`}>
+                      <div className="progress-meter__label">
+                        <span>Goal-task progress</span>
+                        <strong>
+                          {completedGoalTaskCount}/{totalGoalTaskCount} ({goalTaskProgressPercent}%)
+                        </strong>
+                      </div>
+                      <div className="progress-meter__track">
+                        <div className="progress-meter__bar" style={{ width: `${goalTaskProgressPercent}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="subtask-panel">
+                      <div className="subtask-add-row">
+                        <input
+                          value={subtaskDraftByTaskId[task._id] ?? ""}
+                          disabled={pendingTaskIds[task._id]}
+                          onChange={(event) => setSubtaskDraft(task._id, event.target.value)}
+                          placeholder="Add a subtask..."
+                        />
+                        <button
+                          type="button"
+                          className="btn btn--ghost"
+                          disabled={pendingTaskIds[task._id]}
+                          onClick={() => void addGoalSubtask(task)}
+                        >
+                          Add Subtask
+                        </button>
+                      </div>
+
+                      {task.goalTasks.length === 0 && (
+                        <p className="goal-proof">Add subtasks to drive this goal&apos;s completion status automatically.</p>
+                      )}
+
+                      {task.goalTasks.length > 0 && (
+                        <ul className="subtask-list">
+                          {task.goalTasks.map((goalTask) => (
+                            <li key={`${task._id}-${goalTask.id}`} className="subtask-item">
+                              <div className="subtask-item__main">
+                                <button
+                                  type="button"
+                                  className="btn btn--ghost"
+                                  disabled={pendingTaskIds[task._id]}
+                                  onClick={() => toggleGoalSubtaskCompletion(task, goalTask)}
+                                >
+                                  {goalTask.done ? "Undo" : "Done"}
+                                </button>
+                                <span className={goalTask.done ? "subtask-title is-done" : "subtask-title"}>{goalTask.title}</span>
+                                {goalTask.requiresProof && <span className="subtask-proof-badge">Proof required</span>}
+                                <button
+                                  type="button"
+                                  className="btn btn--ghost"
+                                  disabled={pendingTaskIds[task._id]}
+                                  onClick={() => removeGoalSubtask(task, goalTask.id)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              {goalTask.requiresProof && (
+                                <div className="subtask-item__proof">
+                                  <label className="proof-upload">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      capture="environment"
+                                      disabled={pendingTaskIds[task._id]}
+                                      onChange={(event) => {
+                                        const file = event.currentTarget.files?.[0];
+
+                                        if (!file) {
+                                          return;
+                                        }
+
+                                        void uploadGoalTaskProof(task, goalTask, file);
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    Upload subtask proof
+                                  </label>
+                                  {goalTask.proofLabel && <p className="goal-proof">Subtask proof: {goalTask.proofLabel}</p>}
+                                  {goalTask.proofImageDataUrl && (
+                                    <a
+                                      href={goalTask.proofImageDataUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="shared-proof-card"
+                                    >
+                                      <Image
+                                        src={goalTask.proofImageDataUrl}
+                                        alt={`${goalTask.title} proof`}
+                                        width={220}
+                                        height={160}
+                                        unoptimized
+                                      />
+                                      <span>Open subtask proof</span>
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                     <div className="task-item__controls">
                       <select
                         value={task.status}
-                        disabled={pendingTaskIds[task._id]}
+                        disabled={pendingTaskIds[task._id] || isSubtaskDriven}
                         onChange={(event) => {
                           const nextStatus = normalizeTaskStatus(event.target.value, task.status);
 
@@ -813,6 +1219,8 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                       </button>
                     </div>
 
+                    {isSubtaskDriven && <p className="goal-proof">Status is auto-calculated from subtasks.</p>}
+
                     <div className="day-chip-row">
                       {DAYS.map((day) => (
                         <button
@@ -833,34 +1241,21 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                       ))}
                     </div>
 
+                    <div className="day-chip-row">
+                      {VERIFICATION_OPTIONS.map((option) => (
+                        <button
+                          key={`${task._id}-verify-${option.value}`}
+                          type="button"
+                          className={task.verification.modes.includes(option.value) ? "day-chip is-active" : "day-chip"}
+                          disabled={pendingTaskIds[task._id]}
+                          onClick={() => toggleVerificationMode(task, option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="task-item__controls">
-                      <select
-                        value={task.verification.mode}
-                        disabled={pendingTaskIds[task._id]}
-                        onChange={(event) => {
-                          const nextMode = normalizeVerificationMode(event.target.value, task.verification.mode);
-
-                          if (task.sharedWith.length > 0 && nextMode !== "peer") {
-                            void patchTask(
-                              task._id,
-                              { verificationMode: nextMode, sharedWith: [] },
-                              "Verification mode changed. Sharing removed.",
-                              false,
-                              true,
-                            );
-                            return;
-                          }
-
-                          void patchTask(task._id, { verificationMode: nextMode }, "Verification mode updated.");
-                        }}
-                      >
-                        {VERIFICATION_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-
                       <button
                         type="button"
                         className="btn btn--ghost"
@@ -870,7 +1265,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                         Share
                       </button>
 
-                      {task.verification.mode === "geolocation" && (
+                      {task.verification.modes.includes("geolocation") && (
                         <button
                           type="button"
                           className="btn btn--ghost"
@@ -884,12 +1279,8 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
 
                     {task.sharedWith.length > 0 && (
                       <div className="peer-management">
-                        <p className="goal-proof">Sharing with: {task.sharedWith.join(", ")}</p>
                         <p className="goal-proof">
-                          Switch verification away from Peer confirmation to stop sharing and remove recipients.
-                        </p>
-                        <p className="goal-proof">
-                          Shared approvals: {task.verification.peerConfirmations.length}. Completion comes from shared-user approval.
+                          Approvals: {task.verification.peerConfirmations.length}/{task.sharedWith.length}
                         </p>
                         <div className="peer-chip-row">
                           {task.sharedWith.map((recipientEmail) => {
@@ -918,31 +1309,77 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                       </div>
                     )}
 
-                    {task.verification.mode === "photo" && (
+                    {task.verification.modes.includes("photo") && (
                       <label className="proof-upload">
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
                           disabled={pendingTaskIds[task._id]}
-                          onChange={(event) =>
-                            void patchTask(
-                              task._id,
-                              {
-                                verificationProofLabel: event.currentTarget.files?.[0]?.name ?? "",
-                                verificationState: "submitted",
-                              },
-                              "Photo proof submitted.",
-                            )
-                          }
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+
+                            if (!file) {
+                              return;
+                            }
+
+                            if (!file.type.startsWith("image/")) {
+                              setFeedback("Only image files can be uploaded as proof.");
+                              event.currentTarget.value = "";
+                              return;
+                            }
+
+                            if (file.size > 1_500_000) {
+                              setFeedback("Proof image is too large. Use a file under 1.5MB.");
+                              event.currentTarget.value = "";
+                              return;
+                            }
+
+                            void (async () => {
+                              try {
+                                const proofImageDataUrl = await readFileAsDataUrl(file);
+
+                                await patchTask(
+                                  task._id,
+                                  {
+                                    verificationProofLabel: file.name,
+                                    verificationProofImageDataUrl: proofImageDataUrl,
+                                  },
+                                  "Photo proof submitted.",
+                                  false,
+                                  true,
+                                );
+                              } catch {
+                                setFeedback("Could not process proof image.");
+                              } finally {
+                                event.currentTarget.value = "";
+                              }
+                            })();
+                          }}
                         />
-                        Attach photo proof (test)
+                        Upload photo proof
                       </label>
                     )}
 
                     {task.verification.proofLabel && <p className="goal-proof">Proof: {task.verification.proofLabel}</p>}
+                    {task.verification.geolocationLabel && (
+                      <p className="goal-proof">Location proof: {task.verification.geolocationLabel}</p>
+                    )}
+                    {task.verification.proofImageDataUrl && (
+                      <a href={task.verification.proofImageDataUrl} target="_blank" rel="noreferrer" className="shared-proof-card">
+                        <Image
+                          src={task.verification.proofImageDataUrl}
+                          alt={`${task.title} proof`}
+                          width={240}
+                          height={176}
+                          unoptimized
+                        />
+                        <span>Open proof image</span>
+                      </a>
+                    )}
                   </li>
-                ))}
+                );
+              })}
             </ul>
 
             {filter === "completed" && <p className="goal-proof">Completed goals are shown in the completed folder below.</p>}
@@ -972,6 +1409,14 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                           type="button"
                           className="btn btn--ghost"
                           disabled={pendingTaskIds[task._id]}
+                          onClick={() => reopenCompletedGoal(task)}
+                        >
+                          Reopen
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost"
+                          disabled={pendingTaskIds[task._id]}
                           onClick={() => deleteTask(task._id)}
                         >
                           Delete
@@ -986,7 +1431,7 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
         )}
       </article>
 
-      <article className="shell-card dashboard-card">
+      <article className="shell-card dashboard-card dashboard-card--peer">
         <h2>Shared With You</h2>
         <p className="lead">Goals from other users that were shared with your email for approval.</p>
 
@@ -1008,8 +1453,41 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
                 <p className="goal-proof">Owner: {request.ownerEmail}</p>
                 <p className="goal-proof">Shared with: {request.verification.peerConfirmers.join(", ")}</p>
                 <p className="goal-proof">
+                  Verification enabled:{" "}
+                  {request.verification.modes.length > 0 ? request.verification.modes.join(", ") : "none"}
+                </p>
+                <p className="goal-proof">
                   Confirmations: {request.verification.peerConfirmations.length}/{request.verification.peerConfirmers.length}
                 </p>
+                {request.verification.geolocationLabel && (
+                  <p className="goal-proof">Location proof: {request.verification.geolocationLabel}</p>
+                )}
+                {request.proofUploads.length > 0 && (
+                  <div className="shared-proof-grid">
+                    {request.proofUploads.map((upload) => (
+                      <a
+                        key={`${request._id}-${upload.proofImageDataUrl.slice(0, 48)}`}
+                        href={upload.proofImageDataUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shared-proof-card"
+                      >
+                        <Image
+                          src={upload.proofImageDataUrl}
+                          alt={`${upload.title} proof`}
+                          width={240}
+                          height={176}
+                          unoptimized
+                        />
+                        <span>{upload.proofLabel || upload.title}</span>
+                        {upload.completedAt && <small>{upload.completedAt}</small>}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {request.proofUploads.length === 0 && (
+                  <p className="goal-proof">No proof uploads attached yet.</p>
+                )}
 
                 <div className="task-item__controls">
                   <button
@@ -1070,6 +1548,35 @@ export function DashboardClient({ userName, userEmail }: DashboardClientProps) {
       </article>
 
       <article className="shell-card dashboard-card">
+        <h2>Verification Signals</h2>
+        <p className="lead">Quick view of proof readiness across your current goals.</p>
+        <ul className="summary-list">
+          <li>
+            <span>Photo proof</span>
+            <strong>
+              {verificationSummary.photoSubmitted}/{verificationSummary.photoRequired}
+            </strong>
+          </li>
+          <li>
+            <span>Geolocation proof</span>
+            <strong>
+              {verificationSummary.geoSubmitted}/{verificationSummary.geoRequired}
+            </strong>
+          </li>
+          <li>
+            <span>Peer approvals</span>
+            <strong>
+              {verificationSummary.peerVerified}/{verificationSummary.peerRequired}
+            </strong>
+          </li>
+          <li>
+            <span>Shared recipients</span>
+            <strong>{verificationSummary.sharedRecipientCount}</strong>
+          </li>
+        </ul>
+      </article>
+
+      <article className="shell-card dashboard-card dashboard-card--summary">
         <h2>Backend Summary</h2>
         {isLoadingSummary && <p className="lead">Loading summary...</p>}
 

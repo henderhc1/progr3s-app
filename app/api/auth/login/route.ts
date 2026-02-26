@@ -201,23 +201,40 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-  } else if (!isDemoConfigured) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Demo fallback is not configured. Set DEMO_* variables in .env.local.",
-      },
-      { status: 503 },
-    );
-  } else if (!isValidDemoCredential(payload)) {
-    // Fallback mode when MONGODB_URI is not configured.
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Invalid email or password for the demo account.",
-      },
-      { status: 401 },
-    );
+  } else {
+    if (!isDemoConfigured) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Demo fallback is not configured. Set DEMO_* variables in .env.local.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (!isValidDemoCredential(payload)) {
+      // Fallback mode when MONGODB_URI is not configured.
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Invalid email or password for the demo account.",
+        },
+        { status: 401 },
+      );
+    }
+
+    responseUser =
+      email === DEMO_ADMIN.email
+        ? {
+            email: DEMO_ADMIN.email,
+            name: DEMO_ADMIN.name,
+            role: DEMO_ADMIN.role,
+          }
+        : {
+            email: DEMO_USER.email,
+            name: DEMO_USER.name,
+            role: DEMO_USER.role,
+          };
   }
 
   const response = NextResponse.json({

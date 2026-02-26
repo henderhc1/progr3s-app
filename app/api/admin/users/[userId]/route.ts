@@ -33,7 +33,16 @@ async function requireAdminAndDb() {
     };
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 }),
+    };
+  }
 
   if (!db) {
     return {

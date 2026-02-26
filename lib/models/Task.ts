@@ -1,5 +1,5 @@
 import { InferSchemaType, Model, Schema, model, models } from "mongoose";
-import { TASK_STATUSES, VERIFICATION_MODES, VERIFICATION_STATES } from "@/lib/tasks";
+import { ACTIVE_VERIFICATION_MODES, GOAL_TYPES, TASK_STATUSES, VERIFICATION_MODES, VERIFICATION_STATES } from "@/lib/tasks";
 
 const taskSchema = new Schema(
   {
@@ -16,6 +16,12 @@ const taskSchema = new Schema(
       trim: true,
       minlength: 2,
       maxlength: 140,
+    },
+    goalType: {
+      type: String,
+      enum: GOAL_TYPES,
+      default: "general",
+      index: true,
     },
     status: {
       type: String,
@@ -36,11 +42,66 @@ const taskSchema = new Schema(
       type: [String],
       default: [],
     },
+    goalTasks: {
+      type: [
+        new Schema(
+          {
+            id: {
+              type: String,
+              required: true,
+              trim: true,
+            },
+            title: {
+              type: String,
+              required: true,
+              trim: true,
+              minlength: 2,
+              maxlength: 120,
+            },
+            done: {
+              type: Boolean,
+              default: false,
+            },
+            requiresProof: {
+              type: Boolean,
+              default: false,
+            },
+            proofLabel: {
+              type: String,
+              default: "",
+              trim: true,
+              maxlength: 160,
+            },
+            proofImageDataUrl: {
+              type: String,
+              default: "",
+              maxlength: 2_500_000,
+            },
+            completedAt: {
+              type: String,
+              default: "",
+              trim: true,
+            },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     verification: {
       mode: {
         type: String,
         enum: VERIFICATION_MODES,
         default: "none",
+      },
+      modes: {
+        type: [
+          {
+            type: String,
+            enum: ACTIVE_VERIFICATION_MODES,
+          },
+        ],
+        default: [],
       },
       state: {
         type: String,
@@ -48,6 +109,17 @@ const taskSchema = new Schema(
         default: "not_required",
       },
       proofLabel: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 160,
+      },
+      proofImageDataUrl: {
+        type: String,
+        default: "",
+        maxlength: 2_500_000,
+      },
+      geolocationLabel: {
         type: String,
         default: "",
         trim: true,

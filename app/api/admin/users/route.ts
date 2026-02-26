@@ -31,7 +31,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     return NextResponse.json({
@@ -94,7 +100,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
   }
 
-  const db = await connectToDatabase();
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
+  }
 
   if (!db) {
     return NextResponse.json({ ok: false, message: "Admin edits require MongoDB mode." }, { status: 400 });

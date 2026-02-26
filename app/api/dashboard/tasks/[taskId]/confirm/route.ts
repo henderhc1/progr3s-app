@@ -3,7 +3,42 @@ import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
-import { normalizeEmailList, normalizePeerConfirmations, resolveTaskStatus, toLocalDateKey } from "@/lib/tasks";
+import {
+  computeVerificationState,
+  mergeVerificationModes,
+  normalizeEmailList,
+  normalizeGoalTasks,
+  normalizePeerConfirmations,
+  resolveTaskStatus,
+  resolveVerificationModes,
+  toLocalDateKey,
+} from "@/lib/tasks";
+
+function resolveSharedGoalStatus(
+  currentStatus: ReturnType<typeof resolveTaskStatus>,
+  goalTasks: ReturnType<typeof normalizeGoalTasks>,
+  verificationState: "not_required" | "pending" | "submitted" | "verified",
+) {
+  if (goalTasks.length === 0) {
+    if (verificationState === "verified") {
+      return "completed" as const;
+    }
+
+    return currentStatus === "completed" ? "in_progress" as const : currentStatus;
+  }
+
+  const completedGoalTaskCount = goalTasks.filter((goalTask) => goalTask.done).length;
+
+  if (completedGoalTaskCount === 0) {
+    return "not_started" as const;
+  }
+
+  if (completedGoalTaskCount === goalTasks.length) {
+    return verificationState === "verified" ? "completed" as const : "in_progress" as const;
+  }
+
+  return "in_progress" as const;
+}
 
 function mapConfirmationTask(
   task: {
@@ -15,7 +50,11 @@ function mapConfirmationTask(
     sharedWith?: unknown;
     verification?: {
       mode?: string;
+      modes?: unknown;
       state?: string;
+      proofLabel?: string;
+      proofImageDataUrl?: string;
+      geolocationLabel?: string;
       peerConfirmers?: unknown;
       peerConfirmations?: unknown;
     } | null;
@@ -26,6 +65,26 @@ function mapConfirmationTask(
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
     sharedWith.includes(confirmation.email),
   );
+  const rawProofLabel = typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
+  const rawGeolocationLabel =
+    typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
+  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
+  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
+  const proofImageDataUrl =
+    typeof task.verification?.proofImageDataUrl === "string" && task.verification.proofImageDataUrl.startsWith("data:image/")
+      ? task.verification.proofImageDataUrl
+      : "";
+  const verificationModes = mergeVerificationModes(
+    resolveVerificationModes(task.verification?.modes, task.verification?.mode),
+    ["peer"],
+  );
+  const verificationState = computeVerificationState({
+    modes: verificationModes,
+    photoProofImageDataUrl: proofImageDataUrl,
+    geolocationLabel,
+    peerConfirmers: sharedWith,
+    peerConfirmations,
+  });
 
   return {
     _id: typeof task._id === "string" ? task._id : task._id.toString(),
@@ -34,8 +93,12 @@ function mapConfirmationTask(
     status: resolveTaskStatus(task.status, task.done),
     sharedWith,
     verification: {
-      mode: "peer",
-      state: peerConfirmations.length > 0 ? "verified" : "pending",
+      mode: verificationModes[0] ?? "none",
+      modes: verificationModes,
+      state: verificationState,
+      proofLabel,
+      proofImageDataUrl,
+      geolocationLabel,
       peerConfirmers: sharedWith,
       peerConfirmations,
     },
@@ -90,6 +153,19 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
     sharedWith.includes(confirmation.email),
   );
+  const rawProofLabel = typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
+  const rawGeolocationLabel =
+    typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
+  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
+  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
+  const proofImageDataUrl =
+    typeof task.verification?.proofImageDataUrl === "string" && task.verification.proofImageDataUrl.startsWith("data:image/")
+      ? task.verification.proofImageDataUrl
+      : "";
+  const verificationModes = mergeVerificationModes(
+    resolveVerificationModes(task.verification?.modes, task.verification?.mode),
+    ["peer"],
+  );
 
   if (!peerConfirmations.some((confirmation) => confirmation.email === identity.email)) {
     peerConfirmations.push({
@@ -98,12 +174,21 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     });
   }
 
-  const hasApproval = peerConfirmations.length > 0;
+  const verificationState = computeVerificationState({
+    modes: verificationModes,
+    photoProofImageDataUrl: proofImageDataUrl,
+    geolocationLabel,
+    peerConfirmers: sharedWith,
+    peerConfirmations,
+  });
 
   task.set("verification", {
-    mode: "peer",
-    state: hasApproval ? "verified" : "pending",
-    proofLabel: task.verification?.proofLabel?.trim() ?? "",
+    mode: verificationModes[0] ?? "none",
+    modes: verificationModes,
+    state: verificationState,
+    proofLabel,
+    proofImageDataUrl,
+    geolocationLabel,
     peerConfirmers: sharedWith,
     peerConfirmations: peerConfirmations.map((confirmation) => ({
       email: confirmation.email,
@@ -111,19 +196,22 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     })),
   });
 
-  if (hasApproval) {
-    task.status = "completed";
-    task.done = true;
+  const currentStatus = resolveTaskStatus(task.status, task.done);
+  const goalTasks = normalizeGoalTasks(task.goalTasks);
+  const nextStatus = resolveSharedGoalStatus(currentStatus, goalTasks, verificationState);
+  task.status = nextStatus;
+  task.done = nextStatus === "completed";
 
-    const completionDates = Array.isArray(task.completionDates) ? [...task.completionDates] : [];
-    const today = toLocalDateKey();
+  const today = toLocalDateKey();
+  const completionDates = Array.isArray(task.completionDates)
+    ? task.completionDates.filter((dateKey): dateKey is string => typeof dateKey === "string" && dateKey !== today)
+    : [];
 
-    if (!completionDates.includes(today)) {
-      completionDates.push(today);
-    }
-
-    task.completionDates = completionDates;
+  if (nextStatus === "completed") {
+    completionDates.push(today);
   }
+
+  task.completionDates = Array.from(new Set(completionDates)).sort((a, b) => a.localeCompare(b));
 
   const saveResult = await task.save().catch(() => null);
 
@@ -176,17 +264,57 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations)
     .filter((confirmation) => sharedWith.includes(confirmation.email))
     .filter((confirmation) => confirmation.email !== identity.email);
+  const rawProofLabel = typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
+  const rawGeolocationLabel =
+    typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
+  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
+  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
+  const proofImageDataUrl =
+    typeof task.verification?.proofImageDataUrl === "string" && task.verification.proofImageDataUrl.startsWith("data:image/")
+      ? task.verification.proofImageDataUrl
+      : "";
+  const verificationModes = mergeVerificationModes(
+    resolveVerificationModes(task.verification?.modes, task.verification?.mode),
+    ["peer"],
+  );
+  const verificationState = computeVerificationState({
+    modes: verificationModes,
+    photoProofImageDataUrl: proofImageDataUrl,
+    geolocationLabel,
+    peerConfirmers: sharedWith,
+    peerConfirmations,
+  });
 
   task.set("verification", {
-    mode: "peer",
-    state: peerConfirmations.length > 0 ? "verified" : "pending",
-    proofLabel: task.verification?.proofLabel?.trim() ?? "",
+    mode: verificationModes[0] ?? "none",
+    modes: verificationModes,
+    state: verificationState,
+    proofLabel,
+    proofImageDataUrl,
+    geolocationLabel,
     peerConfirmers: sharedWith,
     peerConfirmations: peerConfirmations.map((confirmation) => ({
       email: confirmation.email,
       confirmedAt: new Date(confirmation.confirmedAt),
     })),
   });
+
+  const currentStatus = resolveTaskStatus(task.status, task.done);
+  const goalTasks = normalizeGoalTasks(task.goalTasks);
+  const nextStatus = resolveSharedGoalStatus(currentStatus, goalTasks, verificationState);
+  task.status = nextStatus;
+  task.done = nextStatus === "completed";
+
+  const today = toLocalDateKey();
+  const completionDates = Array.isArray(task.completionDates)
+    ? task.completionDates.filter((dateKey): dateKey is string => typeof dateKey === "string" && dateKey !== today)
+    : [];
+
+  if (nextStatus === "completed") {
+    completionDates.push(today);
+  }
+
+  task.completionDates = Array.from(new Set(completionDates)).sort((a, b) => a.localeCompare(b));
 
   const saveResult = await task.save().catch(() => null);
 

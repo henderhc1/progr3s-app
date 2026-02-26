@@ -102,7 +102,19 @@ function validatePayload(payload: SignupPayload): SignupValidationResult {
 }
 
 export async function POST(request: Request) {
-  const payload = await readPayload(request);
+  let payload: SignupPayload | null = null;
+
+  try {
+    payload = await readPayload(request);
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Invalid request body. Send valid JSON or form data.",
+      },
+      { status: 400 },
+    );
+  }
 
   if (!payload) {
     return NextResponse.json(

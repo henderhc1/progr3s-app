@@ -6,6 +6,8 @@ export type TaskFilter = (typeof TASK_FILTERS)[number];
 
 export const VERIFICATION_MODES = ["none", "photo", "geolocation", "peer"] as const;
 export type VerificationMode = (typeof VERIFICATION_MODES)[number];
+export const ACTIVE_VERIFICATION_MODES = ["photo", "geolocation", "peer"] as const;
+export type ActiveVerificationMode = (typeof ACTIVE_VERIFICATION_MODES)[number];
 
 export const VERIFICATION_STATES = ["not_required", "pending", "submitted", "verified"] as const;
 export type VerificationState = (typeof VERIFICATION_STATES)[number];
@@ -14,9 +16,25 @@ export type PeerConfirmation = {
   confirmedAt: string;
 };
 
+export const GOAL_TYPES = ["general", "gym", "programming"] as const;
+export type GoalType = (typeof GOAL_TYPES)[number];
+
+export type GoalTaskItem = {
+  id: string;
+  title: string;
+  done: boolean;
+  requiresProof: boolean;
+  proofLabel: string;
+  proofImageDataUrl: string;
+  completedAt: string;
+};
+
 const TASK_STATUS_SET = new Set<string>(TASK_STATUSES);
 const VERIFICATION_MODE_SET = new Set<string>(VERIFICATION_MODES);
+const ACTIVE_VERIFICATION_MODE_SET = new Set<string>(ACTIVE_VERIFICATION_MODES);
 const VERIFICATION_STATE_SET = new Set<string>(VERIFICATION_STATES);
+const GOAL_TYPE_SET = new Set<string>(GOAL_TYPES);
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -50,6 +68,153 @@ export function normalizeVerificationState(
   }
 
   return fallback;
+}
+
+export function normalizeVerificationModes(
+  value: unknown,
+  fallback: ActiveVerificationMode[] = [],
+): ActiveVerificationMode[] {
+  const modes = new Set<ActiveVerificationMode>();
+
+  const addMode = (candidate: unknown) => {
+    if (typeof candidate !== "string") {
+      return;
+    }
+
+    const normalized = candidate.trim().toLowerCase();
+
+    if (ACTIVE_VERIFICATION_MODE_SET.has(normalized)) {
+      modes.add(normalized as ActiveVerificationMode);
+    }
+  };
+
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      addMode(candidate);
+    }
+
+    return ACTIVE_VERIFICATION_MODES.filter((mode) => modes.has(mode));
+  }
+
+  if (typeof value === "string") {
+    for (const candidate of value.split(",")) {
+      addMode(candidate);
+    }
+
+    return ACTIVE_VERIFICATION_MODES.filter((mode) => modes.has(mode));
+  }
+
+  if (value !== undefined) {
+    return [];
+  }
+
+  return normalizeVerificationModes(fallback);
+}
+
+export function mergeVerificationModes(
+  ...modeGroups: Array<Iterable<ActiveVerificationMode> | undefined>
+): ActiveVerificationMode[] {
+  const merged = new Set<ActiveVerificationMode>();
+
+  for (const group of modeGroups) {
+    if (!group) {
+      continue;
+    }
+
+    for (const mode of group) {
+      if (ACTIVE_VERIFICATION_MODE_SET.has(mode)) {
+        merged.add(mode as ActiveVerificationMode);
+      }
+    }
+  }
+
+  return ACTIVE_VERIFICATION_MODES.filter((mode) => merged.has(mode));
+}
+
+export function resolveVerificationModes(
+  modesValue: unknown,
+  legacyModeValue: unknown,
+): ActiveVerificationMode[] {
+  const modes = normalizeVerificationModes(modesValue);
+
+  if (modes.length > 0 || modesValue !== undefined) {
+    return modes;
+  }
+
+  const legacyMode = normalizeVerificationMode(legacyModeValue);
+  return legacyMode === "none" ? [] : [legacyMode];
+}
+
+export function normalizeGoalType(value: unknown, fallback: GoalType = "general"): GoalType {
+  if (typeof value === "string" && GOAL_TYPE_SET.has(value)) {
+    return value as GoalType;
+  }
+
+  return fallback;
+}
+
+function normalizeGoalTaskDate(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  return DATE_KEY_PATTERN.test(trimmed) ? trimmed : "";
+}
+
+export function normalizeGoalTasks(value: unknown): GoalTaskItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const tasks: GoalTaskItem[] = [];
+  const seenIds = new Set<string>();
+
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index];
+
+    if (typeof raw !== "object" || raw === null) {
+      continue;
+    }
+
+    const idCandidate = "id" in raw && typeof raw.id === "string" ? raw.id.trim() : "";
+    const id = idCandidate || `goal-task-${index + 1}`;
+
+    const title = "title" in raw && typeof raw.title === "string" ? raw.title.trim().slice(0, 120) : "";
+
+    if (!title) {
+      continue;
+    }
+
+    if (seenIds.has(id)) {
+      continue;
+    }
+
+    seenIds.add(id);
+
+    const done = "done" in raw && raw.done === true;
+    const requiresProof = "requiresProof" in raw && raw.requiresProof === true;
+    const proofLabel = "proofLabel" in raw && typeof raw.proofLabel === "string" ? raw.proofLabel.trim().slice(0, 160) : "";
+    const proofImageDataUrl =
+      "proofImageDataUrl" in raw &&
+      typeof raw.proofImageDataUrl === "string" &&
+      raw.proofImageDataUrl.startsWith("data:image/")
+        ? raw.proofImageDataUrl.slice(0, 2_500_000)
+        : "";
+    const completedAt = "completedAt" in raw ? normalizeGoalTaskDate(raw.completedAt) : "";
+
+    tasks.push({
+      id,
+      title,
+      done,
+      requiresProof,
+      proofLabel,
+      proofImageDataUrl,
+      completedAt,
+    });
+  }
+
+  return tasks;
 }
 
 export function normalizeScheduledDays(value: unknown): number[] {
@@ -158,6 +323,60 @@ export function computePeerVerificationState(
   }
 
   return "verified";
+}
+
+type VerificationStateInput = {
+  modes: ActiveVerificationMode[];
+  photoProofImageDataUrl?: string;
+  geolocationLabel?: string;
+  peerConfirmers?: string[];
+  peerConfirmations?: PeerConfirmation[];
+};
+
+export function computeVerificationState({
+  modes,
+  photoProofImageDataUrl = "",
+  geolocationLabel = "",
+  peerConfirmers = [],
+  peerConfirmations = [],
+}: VerificationStateInput): VerificationState {
+  if (modes.length === 0) {
+    return "not_required";
+  }
+
+  let satisfiedCount = 0;
+
+  for (const mode of modes) {
+    if (mode === "photo") {
+      if (photoProofImageDataUrl.startsWith("data:image/")) {
+        satisfiedCount += 1;
+      }
+
+      continue;
+    }
+
+    if (mode === "geolocation") {
+      if (geolocationLabel.startsWith("geo:")) {
+        satisfiedCount += 1;
+      }
+
+      continue;
+    }
+
+    if (peerConfirmers.length > 0 && peerConfirmations.length > 0) {
+      satisfiedCount += 1;
+    }
+  }
+
+  if (satisfiedCount === 0) {
+    return "pending";
+  }
+
+  if (satisfiedCount === modes.length) {
+    return "verified";
+  }
+
+  return "submitted";
 }
 
 export function toLocalDateKey(date: Date = new Date()): string {
