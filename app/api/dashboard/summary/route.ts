@@ -75,7 +75,7 @@ export async function GET() {
   if (db) {
     const tasks = await TaskModel.find(
       { ownerEmail: identity.email },
-      { status: 1, done: 1, scheduledDays: 1, completionDates: 1 },
+      { status: 1, done: 1, scheduledDays: 1, goalCadence: 1, completionDates: 1 },
     )
       .lean()
       .catch(() => null);
@@ -101,6 +101,7 @@ export async function GET() {
         status: task.status,
         done: task.done,
         scheduledDays: task.scheduledDays,
+        goalCadence: task.goalCadence,
         completionDates: task.completionDates,
       });
       const status = resolveTaskStatus(maintenance.status, maintenance.done);

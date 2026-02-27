@@ -154,6 +154,7 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     status: task.status,
     done: task.done,
     scheduledDays: task.scheduledDays,
+    goalCadence: task.goalCadence,
     completionDates: task.completionDates,
     goalTasks: task.goalTasks,
     verification: task.verification,

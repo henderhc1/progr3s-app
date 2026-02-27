@@ -18,6 +18,8 @@ export type PeerConfirmation = {
 
 export const GOAL_TYPES = ["general", "gym", "programming"] as const;
 export type GoalType = (typeof GOAL_TYPES)[number];
+export const GOAL_CADENCES = ["one_time", "weekly"] as const;
+export type GoalCadence = (typeof GOAL_CADENCES)[number];
 
 export type GoalTaskItem = {
   id: string;
@@ -35,6 +37,7 @@ const VERIFICATION_MODE_SET = new Set<string>(VERIFICATION_MODES);
 const ACTIVE_VERIFICATION_MODE_SET = new Set<string>(ACTIVE_VERIFICATION_MODES);
 const VERIFICATION_STATE_SET = new Set<string>(VERIFICATION_STATES);
 const GOAL_TYPE_SET = new Set<string>(GOAL_TYPES);
+const GOAL_CADENCE_SET = new Set<string>(GOAL_CADENCES);
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isNumber(value: unknown): value is number {
@@ -149,6 +152,14 @@ export function resolveVerificationModes(
 export function normalizeGoalType(value: unknown, fallback: GoalType = "general"): GoalType {
   if (typeof value === "string" && GOAL_TYPE_SET.has(value)) {
     return value as GoalType;
+  }
+
+  return fallback;
+}
+
+export function normalizeGoalCadence(value: unknown, fallback: GoalCadence = "one_time"): GoalCadence {
+  if (typeof value === "string" && GOAL_CADENCE_SET.has(value)) {
+    return value as GoalCadence;
   }
 
   return fallback;

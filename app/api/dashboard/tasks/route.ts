@@ -13,6 +13,7 @@ import {
   GoalTaskItem,
   mergeVerificationModes,
   normalizeEmailList,
+  normalizeGoalCadence,
   normalizeGoalTasks,
   normalizeGoalType,
   normalizePeerConfirmations,
@@ -42,6 +43,7 @@ const demoTasks = [
     _id: "demo-1",
     title: "Weekly gym routine",
     goalType: "gym",
+    goalCadence: "weekly",
     status: "in_progress",
     done: false,
     scheduledDays: [1, 2],
@@ -84,6 +86,7 @@ const demoTasks = [
     _id: "demo-2",
     title: "LeetCode consistency",
     goalType: "programming",
+    goalCadence: "weekly",
     status: "not_started",
     done: false,
     scheduledDays: [1, 3, 5],
@@ -116,6 +119,7 @@ const demoTasks = [
     _id: "demo-3",
     title: "Project planning",
     goalType: "general",
+    goalCadence: "one_time",
     status: "in_progress",
     done: false,
     scheduledDays: [],
@@ -169,6 +173,7 @@ type CreateTaskPayload = {
   sharedWith?: unknown;
   peerConfirmers?: unknown;
   goalType?: string;
+  goalCadence?: string;
   goalTasks?: GoalTaskPayload[];
 };
 
@@ -247,6 +252,7 @@ function mapTask(task: {
   _id: string | { toString(): string };
   title?: string;
   goalType?: string;
+  goalCadence?: string;
   goalTasks?: unknown;
   status?: string;
   done?: boolean;
@@ -265,6 +271,7 @@ function mapTask(task: {
   sharedWith?: unknown;
 }) {
   const goalType = normalizeGoalType(task.goalType);
+  const goalCadence = normalizeGoalCadence(task.goalCadence);
   const goalTasks = normalizeGoalTasks(task.goalTasks);
   const status = resolveTaskStatus(task.status, task.done);
   const sharedWith = normalizeEmailList(task.sharedWith);
@@ -297,6 +304,7 @@ function mapTask(task: {
     _id: typeof task._id === "string" ? task._id : task._id.toString(),
     title: task.title ?? "Untitled goal",
     goalType,
+    goalCadence,
     goalTasks,
     status,
     done: status === "completed",
@@ -357,6 +365,7 @@ export async function GET() {
       done: task.done,
       scheduledDays: task.scheduledDays,
       completionDates: task.completionDates,
+      goalCadence: task.goalCadence,
       goalTasks: task.goalTasks,
       verification: task.verification,
       sharedWith: task.sharedWith,
@@ -460,6 +469,7 @@ export async function POST(request: Request) {
     peerConfirmations: [],
   });
   const goalType = normalizeGoalType(body.goalType);
+  const goalCadence = normalizeGoalCadence(body.goalCadence);
   const providedGoalTasks = normalizeGoalTasks(body.goalTasks);
   const goalTasks = providedGoalTasks.length > 0 ? providedGoalTasks : buildDefaultGoalTasks(goalType, scheduledDays);
 
@@ -509,6 +519,7 @@ export async function POST(request: Request) {
         _id: `demo-${Date.now()}`,
         title,
         goalType,
+        goalCadence,
         goalTasks,
         status,
         done: status === "completed",
@@ -560,6 +571,7 @@ export async function POST(request: Request) {
     ownerEmail: identity.email,
     title,
     goalType,
+    goalCadence,
     goalTasks,
     status,
     done: status === "completed",
@@ -593,6 +605,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    task: mapTask(task),
+    task: {
+      ...mapTask(task),
+      goalCadence,
+    },
   });
 }

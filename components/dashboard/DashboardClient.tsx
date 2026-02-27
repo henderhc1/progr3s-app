@@ -6,10 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActiveVerificationMode,
   computeVerificationState,
+  GoalCadence,
   GoalTaskItem,
   mergeVerificationModes,
   computeStreakDays,
   normalizeEmailList,
+  normalizeGoalCadence,
   normalizeGoalTasks,
   normalizePeerConfirmations,
   normalizeScheduledDays,
@@ -51,6 +53,7 @@ type TaskVerification = {
 type Task = {
   _id: string;
   title: string;
+  goalCadence: GoalCadence;
   status: TaskStatus;
   done: boolean;
   goalTasks: GoalTaskItem[];
@@ -63,6 +66,7 @@ type Task = {
 type TaskApiPayload = {
   _id?: string;
   title?: string;
+  goalCadence?: unknown;
   status?: string;
   done?: boolean;
   goalTasks?: unknown;
@@ -155,6 +159,8 @@ type DashboardClientProps = {
   userName: string;
 };
 
+type TaskCategoryTab = "goals" | "routines";
+
 type CalendarCell = {
   key: string;
   dayNumber: number | null;
@@ -173,6 +179,11 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: "Not Started",
   in_progress: "In Progress",
   completed: "Completed",
+};
+
+const GOAL_CADENCE_LABELS: Record<GoalCadence, string> = {
+  one_time: "One-time goal",
+  weekly: "Weekly routine",
 };
 
 const FILTER_OPTIONS: Array<{ value: TaskFilter; label: string }> = [
@@ -202,6 +213,7 @@ const DAYS: Array<{ value: number; short: string }> = [
 const EMPTY_TASKS: Task[] = [];
 
 function normalizeTask(payload: TaskApiPayload): Task {
+  const goalCadence = normalizeGoalCadence(payload.goalCadence);
   const status = resolveTaskStatus(payload.status, payload.done);
   const sharedWith = normalizeEmailList(payload.sharedWith);
   const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(payload.verification?.peerConfirmers);
@@ -245,6 +257,7 @@ function normalizeTask(payload: TaskApiPayload): Task {
   return {
     _id: payload._id ?? `fallback-${Date.now()}`,
     title: payload.title?.trim() || "Untitled goal",
+    goalCadence,
     status,
     done: status === "completed",
     goalTasks: normalizeGoalTasks(payload.goalTasks),
@@ -430,9 +443,10 @@ export function DashboardClient({ userName }: DashboardClientProps) {
   const [draftTask, setDraftTask] = useState("");
   const [draftStatus, setDraftStatus] = useState<TaskStatus>("not_started");
   const [draftDays, setDraftDays] = useState<number[]>([]);
-  const [feedback, setFeedback] = useState("Welcome. Build your first goal box.");
+  const [feedback, setFeedback] = useState("");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [filter, setFilter] = useState<TaskFilter>("active");
+  const [categoryTab, setCategoryTab] = useState<TaskCategoryTab>("goals");
   const [showCompletedFolder, setShowCompletedFolder] = useState(false);
   const [calendarCursor, setCalendarCursor] = useState(() => monthStart(new Date()));
   const [selectedCalendarDateKey, setSelectedCalendarDateKey] = useState<string | null>(null);
@@ -639,14 +653,22 @@ export function DashboardClient({ userName }: DashboardClientProps) {
     return () => window.clearInterval(intervalId);
   }, [loadNetwork, loadPeerRequests, loadSummary, loadTasks]);
 
-  const completedCount = useMemo(() => tasks.filter((task) => task.status === "completed").length, [tasks]);
+  const tasksInSelectedCategory = useMemo(
+    () =>
+      tasks.filter((task) => (categoryTab === "goals" ? task.goalCadence === "one_time" : task.goalCadence === "weekly")),
+    [categoryTab, tasks],
+  );
+  const completedCount = useMemo(
+    () => tasksInSelectedCategory.filter((task) => task.status === "completed").length,
+    [tasksInSelectedCategory],
+  );
   const progressPercent = useMemo(() => {
-    if (tasks.length === 0) {
+    if (tasksInSelectedCategory.length === 0) {
       return 0;
     }
 
-    return Math.round((completedCount / tasks.length) * 100);
-  }, [completedCount, tasks.length]);
+    return Math.round((completedCount / tasksInSelectedCategory.length) * 100);
+  }, [completedCount, tasksInSelectedCategory.length]);
 
   const completionDateSet = useMemo(() => {
     const set = new Set<string>();
@@ -719,17 +741,20 @@ export function DashboardClient({ userName }: DashboardClientProps) {
 
   const visibleTasks = useMemo(() => {
     if (filter === "active") {
-      return tasks.filter((task) => task.status !== "completed");
+      return tasksInSelectedCategory.filter((task) => task.status !== "completed");
     }
 
     if (filter === "all") {
-      return tasks;
+      return tasksInSelectedCategory;
     }
 
-    return tasks.filter((task) => task.status === filter);
-  }, [filter, tasks]);
+    return tasksInSelectedCategory.filter((task) => task.status === filter);
+  }, [filter, tasksInSelectedCategory]);
 
-  const completedTasks = useMemo(() => tasks.filter((task) => task.status === "completed"), [tasks]);
+  const completedTasks = useMemo(
+    () => tasksInSelectedCategory.filter((task) => task.status === "completed"),
+    [tasksInSelectedCategory],
+  );
   const mainTasks = useMemo(() => {
     if (filter === "completed") {
       return [];
@@ -831,7 +856,7 @@ export function DashboardClient({ userName }: DashboardClientProps) {
     }
   }, [completionDateSet, selectedCalendarDateKey]);
 
-  async function addTask() {
+  async function addTask(goalCadence: GoalCadence) {
     if (isAddingTask) {
       return;
     }
@@ -839,7 +864,12 @@ export function DashboardClient({ userName }: DashboardClientProps) {
     const title = draftTask.trim();
 
     if (title.length < 2) {
-      setFeedback("Goal title must be at least 2 characters.");
+      setFeedback(`${goalCadence === "weekly" ? "Routine" : "Goal"} title must be at least 2 characters.`);
+      return;
+    }
+
+    if (goalCadence === "weekly" && draftDays.length === 0) {
+      setFeedback("Routines need at least one scheduled day.");
       return;
     }
 
@@ -854,6 +884,7 @@ export function DashboardClient({ userName }: DashboardClientProps) {
           title,
           status: draftStatus,
           scheduledDays: draftDays,
+          goalCadence,
         }),
       });
 
@@ -864,18 +895,18 @@ export function DashboardClient({ userName }: DashboardClientProps) {
       }
 
       if (!response.ok || !data.ok || !data.task) {
-        setFeedback(data.message ?? "Could not add goal.");
+        setFeedback(data.message ?? `Could not add ${goalCadence === "weekly" ? "routine" : "goal"}.`);
         return;
       }
 
-      setTasks((current) => [normalizeTask(data.task!), ...current]);
+      setTasks((current) => [normalizeTask({ ...data.task!, goalCadence }), ...current]);
+      setCategoryTab(goalCadence === "weekly" ? "routines" : "goals");
       setDraftTask("");
       setDraftStatus("not_started");
       setDraftDays([]);
-      setFeedback("Goal added.");
       void loadSummary();
     } catch {
-      setFeedback("Network issue while adding goal.");
+      setFeedback(`Network issue while adding ${goalCadence === "weekly" ? "routine" : "goal"}.`);
     } finally {
       setIsAddingTask(false);
     }
@@ -888,6 +919,7 @@ export function DashboardClient({ userName }: DashboardClientProps) {
     refreshSummary = false,
     refreshPeerRequests = false,
   ): Promise<boolean> {
+    void successMessage;
     if (pendingTaskIds[taskId]) {
       return false;
     }
@@ -913,7 +945,6 @@ export function DashboardClient({ userName }: DashboardClientProps) {
       }
 
       setTasks((current) => current.map((task) => (task._id === taskId ? normalizeTask(data.task!) : task)));
-      setFeedback(successMessage);
 
       if (refreshSummary) {
         void loadSummary();
@@ -960,7 +991,6 @@ export function DashboardClient({ userName }: DashboardClientProps) {
       }
 
       setTasks((current) => current.filter((task) => task._id !== taskId));
-      setFeedback("Goal deleted.");
       void loadSummary();
       void loadPeerRequests();
     } catch {
@@ -993,7 +1023,6 @@ export function DashboardClient({ userName }: DashboardClientProps) {
         return;
       }
 
-      setFeedback("Shared goal approved.");
       void loadPeerRequests();
       void loadTasks();
       void loadSummary();
@@ -1230,22 +1259,22 @@ export function DashboardClient({ userName }: DashboardClientProps) {
         <p className="eyebrow workspace-eyebrow">Workspace {"\u2728"}</p>
         <h1 className="workspace-title">{userName}</h1>
         <p className="app-motto app-motto--workspace">Plan it. Prove it. Keep the streak alive.</p>
-        <p className="dashboard-feedback">{feedback}</p>
+        {feedback && <p className="dashboard-feedback">{feedback}</p>}
       </article>
 
       <article className="shell-card dashboard-card dashboard-card--composer">
-        <h2>Add Goal</h2>
-        <p className="dashboard-card__hint">Create a goal first, then manage its details in the goals section.</p>
+        <h2>Add Goal / Routine</h2>
+        <p className="dashboard-card__hint">Goals are one-time. Routines reset weekly.</p>
 
         <div className="dashboard-task-input">
           <label className="dashboard-task-input__field dashboard-task-input__field--title" htmlFor="composer-goal-title">
-            <span>Goal</span>
+            <span>Title</span>
             <input
               id="composer-goal-title"
               value={draftTask}
               disabled={isAddingTask}
               onChange={(event) => setDraftTask(event.target.value)}
-              placeholder="Add a goal..."
+              placeholder="Add a goal or routine..."
             />
           </label>
           <label className="dashboard-task-input__field" htmlFor="composer-goal-status">
@@ -1261,13 +1290,28 @@ export function DashboardClient({ userName }: DashboardClientProps) {
               <option value="completed">Completed</option>
             </select>
           </label>
-          <button type="button" className="btn btn--primary dashboard-task-input__add-btn" onClick={addTask} disabled={isAddingTask}>
-            {isAddingTask ? "Adding..." : "Add"}
-          </button>
+          <div className="dashboard-task-input__actions">
+            <button
+              type="button"
+              className="btn btn--primary dashboard-task-input__add-btn"
+              onClick={() => void addTask("one_time")}
+              disabled={isAddingTask}
+            >
+              {isAddingTask ? "Adding..." : "Add Goal"}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost dashboard-task-input__add-btn"
+              onClick={() => void addTask("weekly")}
+              disabled={isAddingTask}
+            >
+              {isAddingTask ? "Adding..." : "Add Routine"}
+            </button>
+          </div>
         </div>
 
         <details className="task-advanced task-advanced--composer">
-          <summary>Set schedule for this goal (optional)</summary>
+          <summary>Set scheduled days (required for routines)</summary>
           <div className="task-advanced__body">
             <div className="day-chip-row">
               {DAYS.map((day) => (
@@ -1286,8 +1330,29 @@ export function DashboardClient({ userName }: DashboardClientProps) {
       </article>
 
       <article className="shell-card dashboard-card dashboard-card--goals">
-        <h2>Your Goals {"\uD83C\uDFAF"}</h2>
-        <p className="dashboard-card__hint">Goals are collapsed by default. Click a goal to open its full details.</p>
+        <h2>Goals And Routines {"\uD83C\uDFAF"}</h2>
+        <p className="dashboard-card__hint">Use tabs to switch between one-time goals and weekly routines.</p>
+
+        <div className="goal-filters" role="tablist" aria-label="Goal category">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={categoryTab === "goals"}
+            className={categoryTab === "goals" ? "goal-filter is-active" : "goal-filter"}
+            onClick={() => setCategoryTab("goals")}
+          >
+            Goals
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={categoryTab === "routines"}
+            className={categoryTab === "routines" ? "goal-filter is-active" : "goal-filter"}
+            onClick={() => setCategoryTab("routines")}
+          >
+            Routines
+          </button>
+        </div>
 
         <div className="progress-meter" aria-label="Goal completion progress">
           <div className="progress-meter__label">
@@ -1379,6 +1444,9 @@ export function DashboardClient({ userName }: DashboardClientProps) {
                     </div>
 
                     <div className="task-meta-row">
+                      <span className={task.goalCadence === "weekly" ? "task-badge task-badge--success" : "task-badge task-badge--info"}>
+                        {GOAL_CADENCE_LABELS[task.goalCadence]}
+                      </span>
                       <span className="task-badge task-badge--info">{scheduledDaysLabel}</span>
                       <span className="task-badge task-badge--warn">{verificationModesLabel}</span>
                       {task.sharedWith.length > 0 && (
@@ -1750,7 +1818,19 @@ export function DashboardClient({ userName }: DashboardClientProps) {
               })}
             </ul>
 
-            {filter === "completed" && <p className="goal-proof">Completed goals are shown in the completed folder below.</p>}
+            {mainTasks.length === 0 && completedTasks.length === 0 && (
+              <p className="goal-proof">
+                {categoryTab === "routines"
+                  ? "No routines yet. Add your first weekly routine above."
+                  : "No goals yet. Add your first one-time goal above."}
+              </p>
+            )}
+
+            {filter === "completed" && (
+              <p className="goal-proof">
+                Completed {categoryTab === "routines" ? "routines" : "goals"} are shown in the completed folder below.
+              </p>
+            )}
 
             {completedTasks.length > 0 && filter !== "all" && filter !== "completed" && (
               <button
@@ -1764,7 +1844,7 @@ export function DashboardClient({ userName }: DashboardClientProps) {
 
             {shouldShowCompletedFolder && (
               <div className="completed-folder">
-                <h3>Completed Folder {"\uD83D\uDCC1"}</h3>
+                <h3>{categoryTab === "routines" ? "Completed Routines" : "Completed Goals"} {"\uD83D\uDCC1"}</h3>
                 <ul className="task-list">
                   {completedTasks.map((task) => (
                     <li key={`completed-${task._id}`} className="task-item task-item--completed">

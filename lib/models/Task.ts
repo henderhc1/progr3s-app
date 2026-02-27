@@ -1,5 +1,12 @@
-import { InferSchemaType, Model, Schema, model, models } from "mongoose";
-import { ACTIVE_VERIFICATION_MODES, GOAL_TYPES, TASK_STATUSES, VERIFICATION_MODES, VERIFICATION_STATES } from "@/lib/tasks";
+import mongoose, { InferSchemaType, Model, Schema } from "mongoose";
+import {
+  ACTIVE_VERIFICATION_MODES,
+  GOAL_CADENCES,
+  GOAL_TYPES,
+  TASK_STATUSES,
+  VERIFICATION_MODES,
+  VERIFICATION_STATES,
+} from "@/lib/tasks";
 
 const taskSchema = new Schema(
   {
@@ -21,6 +28,12 @@ const taskSchema = new Schema(
       type: String,
       enum: GOAL_TYPES,
       default: "general",
+      index: true,
+    },
+    goalCadence: {
+      type: String,
+      enum: GOAL_CADENCES,
+      default: "one_time",
       index: true,
     },
     status: {
@@ -178,5 +191,20 @@ export type TaskDocument = InferSchemaType<typeof taskSchema> & {
   _id: string;
 };
 
-export const TaskModel: Model<TaskDocument> =
-  (models.Task as Model<TaskDocument>) ?? model<TaskDocument>("Task", taskSchema);
+export function getTaskModel(connection: typeof mongoose = mongoose): Model<TaskDocument> {
+  const existingModel = connection.models.Task as Model<TaskDocument> | undefined;
+
+  if (existingModel) {
+    const hasGoalCadencePath = Boolean(existingModel.schema.path("goalCadence"));
+
+    if (hasGoalCadencePath) {
+      return existingModel;
+    }
+
+    delete connection.models.Task;
+  }
+
+  return connection.model<TaskDocument>("Task", taskSchema);
+}
+
+export const TaskModel: Model<TaskDocument> = getTaskModel();

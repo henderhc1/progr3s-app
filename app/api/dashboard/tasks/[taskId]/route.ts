@@ -13,6 +13,7 @@ import {
   GoalTaskItem,
   mergeVerificationModes,
   normalizeEmailList,
+  normalizeGoalCadence,
   normalizeGoalTasks,
   normalizeGoalType,
   normalizePeerConfirmations,
@@ -46,6 +47,7 @@ type UpdateTaskPayload = {
   status?: string;
   scheduledDays?: unknown;
   goalType?: string;
+  goalCadence?: string;
   addGoalTask?: AddGoalTaskPayload;
   updateGoalTask?: GoalTaskUpdatePayload;
   removeGoalTaskId?: string;
@@ -88,6 +90,7 @@ function mapTask(task: {
   _id: string | { toString(): string };
   title?: string;
   goalType?: string;
+  goalCadence?: string;
   goalTasks?: unknown;
   status?: string;
   done?: boolean;
@@ -106,6 +109,7 @@ function mapTask(task: {
   sharedWith?: unknown;
 }) {
   const goalType = normalizeGoalType(task.goalType);
+  const goalCadence = normalizeGoalCadence(task.goalCadence);
   const goalTasks = normalizeGoalTasks(task.goalTasks);
   const status = resolveTaskStatus(task.status, task.done);
   const sharedWith = normalizeEmailList(task.sharedWith);
@@ -138,6 +142,7 @@ function mapTask(task: {
     _id: typeof task._id === "string" ? task._id : task._id.toString(),
     title: task.title ?? "Untitled goal",
     goalType,
+    goalCadence,
     goalTasks,
     status,
     done: status === "completed",
@@ -296,6 +301,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     }
 
     const demoGoalType = normalizeGoalType(body.goalType);
+    const demoGoalCadence = normalizeGoalCadence(body.goalCadence);
     const demoGoalTasks = normalizeGoalTasks([]);
     const demoRequestedModes =
       body.verificationModes !== undefined
@@ -334,6 +340,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
         _id: taskId,
         title: body.title ?? "Updated goal",
         goalType: demoGoalType,
+        goalCadence: demoGoalCadence,
         goalTasks: demoGoalTasks,
         status: normalizeTaskStatus(body.status, body.done ? "completed" : "not_started"),
         done: body.done ?? false,
@@ -368,6 +375,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     status: task.status,
     done: task.done,
     scheduledDays: task.scheduledDays,
+    goalCadence: task.goalCadence,
     completionDates: task.completionDates,
     goalTasks: task.goalTasks,
     verification: task.verification,
@@ -400,6 +408,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
 
   if (typeof body.goalType === "string") {
     task.goalType = normalizeGoalType(body.goalType, normalizeGoalType(task.goalType));
+  }
+
+  if (typeof body.goalCadence === "string") {
+    task.goalCadence = normalizeGoalCadence(body.goalCadence, normalizeGoalCadence(task.goalCadence));
   }
 
   let goalTasks = normalizeGoalTasks(task.goalTasks);

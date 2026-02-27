@@ -1,10 +1,10 @@
 import {
   computeVerificationState,
   mergeVerificationModes,
+  normalizeGoalCadence,
   normalizeEmailList,
   normalizeGoalTasks,
   normalizePeerConfirmations,
-  normalizeScheduledDays,
   resolveTaskStatus,
   resolveVerificationModes,
 } from "@/lib/tasks";
@@ -15,6 +15,7 @@ type TaskMaintenanceInput = {
   status?: unknown;
   done?: unknown;
   scheduledDays?: unknown;
+  goalCadence?: unknown;
   completionDates?: unknown;
   goalTasks?: unknown;
   verification?: {
@@ -125,8 +126,8 @@ function normalizeCompletionDates(baseDates: unknown, goalTasks: ReturnType<type
 export function applyTaskMaintenance(input: TaskMaintenanceInput, retentionDays = 7): TaskMaintenanceResult {
   const now = new Date();
   const weekStart = startOfLocalWeek(now);
-  const scheduledDays = normalizeScheduledDays(input.scheduledDays);
-  const weeklyTracked = scheduledDays.length > 0;
+  const goalCadence = normalizeGoalCadence(input.goalCadence);
+  const weeklyTracked = goalCadence === "weekly";
   const normalizedStatus = resolveTaskStatus(input.status, input.done);
   const normalizedGoalTasks = normalizeGoalTasks(input.goalTasks);
   const normalizedCompletionDates = normalizeCompletionDates(input.completionDates, normalizedGoalTasks);

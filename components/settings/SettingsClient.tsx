@@ -177,11 +177,11 @@ export function SettingsClient() {
   }
 
   return (
-    <section className="shell-card dashboard-card">
+    <section className="shell-card dashboard-card settings-card">
       <h1>Settings</h1>
       <p className="lead">Change password, reset your data, or permanently delete your account.</p>
 
-      <div className="task-section">
+      <div className="task-section settings-block">
         <p className="task-section__label">Change Password</p>
         <div className="task-item__controls">
           <button
@@ -225,7 +225,7 @@ export function SettingsClient() {
         )}
       </div>
 
-      <div className="task-section">
+      <div className="task-section settings-block">
         <p className="task-section__label">Reset Account Data (Keep Account)</p>
         <p className="goal-proof">
           Deletes your goals, clears sharing references, and removes network links while keeping your login account.
@@ -244,7 +244,7 @@ export function SettingsClient() {
         </div>
       </div>
 
-      <div className="task-section">
+      <div className="task-section settings-block settings-block--danger">
         <p className="task-section__label">Delete Account</p>
         <p className="goal-proof">Permanently deletes your account and all associated data.</p>
         <input
