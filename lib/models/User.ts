@@ -9,6 +9,16 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
+    username: {
+      type: String,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 24,
+      match: /^[a-z0-9_]{3,24}$/,
+      sparse: true,
+    },
     name: {
       type: String,
       required: true,
@@ -28,6 +38,18 @@ const userSchema = new Schema(
       type: Boolean,
       default: true,
       required: true,
+    },
+    connections: {
+      type: [String],
+      default: [],
+    },
+    connectionRequestsIncoming: {
+      type: [String],
+      default: [],
+    },
+    connectionRequestsOutgoing: {
+      type: [String],
+      default: [],
     },
   },
   {

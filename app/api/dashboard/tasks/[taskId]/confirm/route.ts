@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
+import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import {
   computeVerificationState,
   mergeVerificationModes,
@@ -149,6 +150,30 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     return NextResponse.json({ ok: false, message: "Shared goal not found." }, { status: 404 });
   }
 
+  const maintenance = applyTaskMaintenance({
+    status: task.status,
+    done: task.done,
+    scheduledDays: task.scheduledDays,
+    completionDates: task.completionDates,
+    goalTasks: task.goalTasks,
+    verification: task.verification,
+    sharedWith: task.sharedWith,
+  });
+
+  if (maintenance.changed) {
+    task.set("goalTasks", maintenance.goalTasks);
+    task.status = maintenance.status;
+    task.done = maintenance.done;
+    task.completionDates = maintenance.completionDates;
+    task.set("verification", {
+      ...maintenance.verification,
+      peerConfirmations: maintenance.verification.peerConfirmations.map((confirmation) => ({
+        email: confirmation.email,
+        confirmedAt: new Date(confirmation.confirmedAt),
+      })),
+    });
+  }
+
   const sharedWith = normalizeEmailList(task.sharedWith).filter((email) => email !== task.ownerEmail);
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
     sharedWith.includes(confirmation.email),
@@ -181,13 +206,25 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
     peerConfirmers: sharedWith,
     peerConfirmations,
   });
+  const shouldPurgeProofImages = verificationState === "verified";
+  const nextProofImageDataUrl = shouldPurgeProofImages ? "" : proofImageDataUrl;
+  const nextGoalTasks = shouldPurgeProofImages
+    ? normalizeGoalTasks(task.goalTasks).map((goalTask) =>
+        goalTask.proofImageDataUrl
+          ? {
+              ...goalTask,
+              proofImageDataUrl: "",
+            }
+          : goalTask,
+      )
+    : normalizeGoalTasks(task.goalTasks);
 
   task.set("verification", {
     mode: verificationModes[0] ?? "none",
     modes: verificationModes,
     state: verificationState,
     proofLabel,
-    proofImageDataUrl,
+    proofImageDataUrl: nextProofImageDataUrl,
     geolocationLabel,
     peerConfirmers: sharedWith,
     peerConfirmations: peerConfirmations.map((confirmation) => ({
@@ -195,6 +232,7 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
       confirmedAt: new Date(confirmation.confirmedAt),
     })),
   });
+  task.set("goalTasks", nextGoalTasks);
 
   const currentStatus = resolveTaskStatus(task.status, task.done);
   const goalTasks = normalizeGoalTasks(task.goalTasks);

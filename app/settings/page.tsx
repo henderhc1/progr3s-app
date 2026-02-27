@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { SettingsClient } from "@/components/settings/SettingsClient";
 import { NavBar } from "@/components/ui/NavBar";
 import { getSessionIdentity } from "@/lib/session";
 
-export default async function DashboardPage() {
+export default async function SettingsPage() {
   const identity = await getSessionIdentity();
 
   if (!identity) {
@@ -22,9 +22,10 @@ export default async function DashboardPage() {
         showMarketingLinks={false}
         showAdminLink={false}
         showUserLinks
-        activeUserLink="dashboard"
+        activeUserLink="settings"
       />
-      <DashboardClient userName={identity.name} />
+
+      <SettingsClient />
     </main>
   );
 }

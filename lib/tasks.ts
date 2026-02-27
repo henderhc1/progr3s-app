@@ -27,6 +27,7 @@ export type GoalTaskItem = {
   proofLabel: string;
   proofImageDataUrl: string;
   completedAt: string;
+  peerConfirmations: PeerConfirmation[];
 };
 
 const TASK_STATUS_SET = new Set<string>(TASK_STATUSES);
@@ -202,6 +203,7 @@ export function normalizeGoalTasks(value: unknown): GoalTaskItem[] {
         ? raw.proofImageDataUrl.slice(0, 2_500_000)
         : "";
     const completedAt = "completedAt" in raw ? normalizeGoalTaskDate(raw.completedAt) : "";
+    const peerConfirmations = "peerConfirmations" in raw ? normalizePeerConfirmations(raw.peerConfirmations) : [];
 
     tasks.push({
       id,
@@ -211,6 +213,7 @@ export function normalizeGoalTasks(value: unknown): GoalTaskItem[] {
       proofLabel,
       proofImageDataUrl,
       completedAt,
+      peerConfirmations,
     });
   }
 

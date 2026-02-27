@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
+import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import {
   mergeVerificationModes,
   normalizeEmailList,
@@ -46,6 +47,8 @@ export async function GET() {
       done: 1,
       sharedWith: 1,
       goalTasks: 1,
+      scheduledDays: 1,
+      completionDates: 1,
       verification: 1,
       updatedAt: 1,
     },
@@ -61,22 +64,41 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     requests: requests.map((task) => {
-      const peerConfirmers = normalizeEmailList(task.sharedWith).filter((email) => email !== task.ownerEmail);
-      const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
+      const maintenance = applyTaskMaintenance({
+        status: task.status,
+        done: task.done,
+        scheduledDays: task.scheduledDays,
+        completionDates: task.completionDates,
+        goalTasks: task.goalTasks,
+        verification: task.verification,
+        sharedWith: task.sharedWith,
+      });
+      const effectiveTask = maintenance.changed
+        ? {
+            ...task,
+            status: maintenance.status,
+            done: maintenance.done,
+            goalTasks: maintenance.goalTasks,
+            completionDates: maintenance.completionDates,
+            verification: maintenance.verification,
+          }
+        : task;
+      const peerConfirmers = normalizeEmailList(effectiveTask.sharedWith).filter((email) => email !== effectiveTask.ownerEmail);
+      const peerConfirmations = normalizePeerConfirmations(effectiveTask.verification?.peerConfirmations).filter((confirmation) =>
         peerConfirmers.includes(confirmation.email),
       );
       const verificationModes = mergeVerificationModes(
-        resolveVerificationModes(task.verification?.modes, task.verification?.mode),
+        resolveVerificationModes(effectiveTask.verification?.modes, effectiveTask.verification?.mode),
         ["peer"],
       );
       const rawVerificationProofLabel =
-        typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
+        typeof effectiveTask.verification?.proofLabel === "string" ? effectiveTask.verification.proofLabel.trim() : "";
       const geolocationLabelRaw =
-        typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
+        typeof effectiveTask.verification?.geolocationLabel === "string" ? effectiveTask.verification.geolocationLabel.trim() : "";
       const geolocationLabel = geolocationLabelRaw || (rawVerificationProofLabel.startsWith("geo:") ? rawVerificationProofLabel : "");
       const verificationProofLabel =
         geolocationLabel && rawVerificationProofLabel === geolocationLabel ? "" : rawVerificationProofLabel;
-      const proofUploads = normalizeGoalTasks(task.goalTasks)
+      const proofUploads = normalizeGoalTasks(effectiveTask.goalTasks)
         .filter((goalTask) => !!goalTask.proofImageDataUrl)
         .map((goalTask) => ({
           title: goalTask.title,
@@ -85,9 +107,9 @@ export async function GET() {
           completedAt: goalTask.completedAt,
         }));
       const verificationProofImageDataUrl =
-        typeof task.verification?.proofImageDataUrl === "string" &&
-        task.verification.proofImageDataUrl.startsWith("data:image/")
-          ? task.verification.proofImageDataUrl
+        typeof effectiveTask.verification?.proofImageDataUrl === "string" &&
+        effectiveTask.verification.proofImageDataUrl.startsWith("data:image/")
+          ? effectiveTask.verification.proofImageDataUrl
           : "";
 
       if (verificationProofImageDataUrl) {
@@ -101,9 +123,9 @@ export async function GET() {
 
       return {
         _id: task._id.toString(),
-        ownerEmail: task.ownerEmail,
-        title: task.title,
-        status: resolveTaskStatus(task.status, task.done),
+        ownerEmail: effectiveTask.ownerEmail,
+        title: effectiveTask.title,
+        status: resolveTaskStatus(effectiveTask.status, effectiveTask.done),
         verification: {
           mode: verificationModes[0] ?? "none",
           modes: verificationModes,

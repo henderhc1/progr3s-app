@@ -33,7 +33,8 @@ export default async function Home() {
 
         <section className="hero shell-card">
           <div>
-            <p className="eyebrow">Productivity Operating System</p>
+            <p className="eyebrow">Productivity Operating System {"\u2728"}</p>
+            <p className="app-motto">Plan it. Prove it. Keep the streak alive.</p>
             <h1>Progress tracking that feels modern, calm, and practical.</h1>
             <p className="lead">
               This starter gives you a clean base to keep shipping: landing sections, auth UI, and an API endpoint.
@@ -43,9 +44,11 @@ export default async function Home() {
               <Link href={hasSession ? dashboardHref : "/signup"} className="btn btn--primary">
                 {hasSession ? "Open dashboard" : "Create account"}
               </Link>
-              <Link href="/login" className="btn btn--ghost">
-                Log in
-              </Link>
+              {!hasSession && (
+                <Link href="/login" className="btn btn--ghost">
+                  Log in
+                </Link>
+              )}
             </div>
           </div>
 

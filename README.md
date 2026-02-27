@@ -46,6 +46,14 @@ DEMO_ADMIN_EMAIL=admin@progr3s.dev
 DEMO_ADMIN_PASSWORD=your_admin_password
 ```
 
+Optional share email notifications:
+
+```env
+RESEND_API_KEY=your_resend_api_key
+SHARE_NOTIFICATION_FROM=Progr3s <noreply@yourdomain.com>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
 3. Run:
 
 ```bash
@@ -106,6 +114,9 @@ Open `http://localhost:3000`.
 - `PATCH /api/dashboard/tasks/[taskId]`
 - `DELETE /api/dashboard/tasks/[taskId]`
 - `GET /api/dashboard/peer-confirmations`
+- `GET /api/dashboard/network`
+- `POST /api/dashboard/network`
+- `DELETE /api/dashboard/network`
 - `POST /api/dashboard/tasks/[taskId]/confirm`
 - `DELETE /api/dashboard/tasks/[taskId]/confirm`
 - `GET /api/admin/users` (admin-only)
@@ -117,10 +128,12 @@ Open `http://localhost:3000`.
 
 ### User
 - `email` (unique)
+- `username` (unique, lowercase)
 - `name`
 - `passwordHash`
 - `role` (`user` | `admin`)
 - `isActive`
+- `connections` (email list for connected users)
 
 ### Task
 - `ownerEmail`
@@ -139,7 +152,10 @@ Open `http://localhost:3000`.
 
 ## Sharing & Approval Rules
 
-- Owners can share a goal by email using the `Share` control on the goal card.
+- Users connect with each other by username in the dashboard network section.
+- Owners can share a goal only with users already in their network.
+- Sharing UI now accepts usernames and resolves them to connected user emails on save.
+- New share recipients receive an email notification when `RESEND_API_KEY` and `SHARE_NOTIFICATION_FROM` are configured.
 - Shared recipients appear on the owner goal card (`Sharing with: ...`) and can be removed individually.
 - Switching verification mode away from `peer` clears `sharedWith` recipients and stops sharing for that goal.
 - Users see incoming shares in the `Shared With You` section (who shared and who else it is shared with).

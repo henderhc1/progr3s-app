@@ -6,6 +6,8 @@ type NavBarProps = {
   ctaHref?: string;
   showMarketingLinks?: boolean;
   showAdminLink?: boolean;
+  showUserLinks?: boolean;
+  activeUserLink?: "dashboard" | "connections" | "settings";
 };
 
 export function NavBar({
@@ -13,6 +15,8 @@ export function NavBar({
   ctaHref = "/login",
   showMarketingLinks = true,
   showAdminLink = false,
+  showUserLinks = false,
+  activeUserLink = "dashboard",
 }: NavBarProps) {
   const isLogoutCta = ctaHref === "/api/auth/logout";
 
@@ -34,6 +38,20 @@ export function NavBar({
         <nav className="topbar__links" aria-label="Admin navigation">
           <Link href="/dashboard">Dashboard</Link>
           <Link href="/admin">Admin</Link>
+        </nav>
+      )}
+
+      {!showMarketingLinks && !showAdminLink && showUserLinks && (
+        <nav className="topbar__links" aria-label="User navigation">
+          <Link href="/dashboard" className={activeUserLink === "dashboard" ? "is-active" : undefined}>
+            Goals
+          </Link>
+          <Link href="/connections" className={activeUserLink === "connections" ? "is-active" : undefined}>
+            Network
+          </Link>
+          <Link href="/settings" className={activeUserLink === "settings" ? "is-active" : undefined}>
+            Settings
+          </Link>
         </nav>
       )}
 

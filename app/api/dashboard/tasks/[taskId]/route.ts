@@ -3,7 +3,11 @@ import mongoose from "mongoose";
 import { DEMO_USER } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
+import { getUserModel } from "@/lib/models/User";
+import { sendGoalSharedNotifications } from "@/lib/notifications";
 import { getSessionIdentity } from "@/lib/session";
+import { validateShareRecipients } from "@/lib/sharing";
+import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import {
   computeVerificationState,
   GoalTaskItem,
@@ -51,34 +55,13 @@ type UpdateTaskPayload = {
   verificationProofLabel?: string;
   verificationProofImageDataUrl?: string;
   verificationGeoLabel?: string;
+  clearProofImages?: boolean;
   sharedWith?: unknown;
   peerConfirmers?: unknown;
 };
 
 function buildGoalTaskId(seed = "") {
   return `goal-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${seed ? `-${seed}` : ""}`;
-}
-
-function alignStatusWithGoalTasks(status: ReturnType<typeof resolveTaskStatus>, goalTasks: GoalTaskItem[]) {
-  if (goalTasks.length === 0) {
-    return status;
-  }
-
-  const doneCount = goalTasks.filter((task) => task.done).length;
-
-  if (doneCount === goalTasks.length) {
-    return "completed" as const;
-  }
-
-  if (doneCount === 0) {
-    return "not_started" as const;
-  }
-
-  if (doneCount > 0) {
-    return "in_progress" as const;
-  }
-
-  return status;
 }
 
 function collectCompletionDates(baseDates: unknown, goalTasks: GoalTaskItem[]) {
@@ -124,7 +107,7 @@ function mapTask(task: {
 }) {
   const goalType = normalizeGoalType(task.goalType);
   const goalTasks = normalizeGoalTasks(task.goalTasks);
-  const status = alignStatusWithGoalTasks(resolveTaskStatus(task.status, task.done), goalTasks);
+  const status = resolveTaskStatus(task.status, task.done);
   const sharedWith = normalizeEmailList(task.sharedWith);
   const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(task.verification?.peerConfirmers);
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
@@ -381,6 +364,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     return NextResponse.json({ ok: false, message: "Goal not found." }, { status: 404 });
   }
 
+  const maintenance = applyTaskMaintenance({
+    status: task.status,
+    done: task.done,
+    scheduledDays: task.scheduledDays,
+    completionDates: task.completionDates,
+    goalTasks: task.goalTasks,
+    verification: task.verification,
+    sharedWith: task.sharedWith,
+  });
+
+  if (maintenance.changed) {
+    task.set("goalTasks", maintenance.goalTasks);
+    task.status = maintenance.status;
+    task.done = maintenance.done;
+    task.completionDates = maintenance.completionDates;
+    task.set("verification", {
+      ...maintenance.verification,
+      peerConfirmations: maintenance.verification.peerConfirmations.map((confirmation) => ({
+        email: confirmation.email,
+        confirmedAt: new Date(confirmation.confirmedAt),
+      })),
+    });
+  }
+
   if (typeof body.title === "string") {
     const title = body.title.trim();
 
@@ -422,6 +429,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
       ...goalTasks,
     ];
@@ -453,6 +461,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     goalTasks = nextGoalTasks;
   }
 
+  const shouldClearProofImages = body.clearProofImages === true;
+
+  if (shouldClearProofImages) {
+    goalTasks = goalTasks.map((goalTask) =>
+      goalTask.proofImageDataUrl
+        ? {
+            ...goalTask,
+            proofImageDataUrl: "",
+          }
+        : goalTask,
+    );
+  }
+
   task.set("goalTasks", goalTasks);
 
   const currentStatus = resolveTaskStatus(task.status, task.done);
@@ -463,13 +484,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     nextStatus = normalizeTaskStatus(body.status, fallbackStatus);
   }
 
-  nextStatus = alignStatusWithGoalTasks(nextStatus, goalTasks);
-
   const currentSharedWith = normalizeEmailList(task.sharedWith).filter((email) => email !== identity.email);
-  const nextSharedWith =
+  let nextSharedWith =
     body.sharedWith !== undefined
       ? normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email)
       : currentSharedWith;
+  let shareRecipients: Array<{ email: string; name: string; username: string }> = [];
+  let ownerNameForNotification = identity.name;
+
+  if (body.sharedWith !== undefined) {
+    const shareValidation = await validateShareRecipients({
+      userModel: getUserModel(db),
+      ownerEmail: identity.email,
+      requestedSharedWith: nextSharedWith,
+    });
+
+    if (!shareValidation.ok) {
+      return NextResponse.json({ ok: false, message: shareValidation.message }, { status: shareValidation.status });
+    }
+
+    nextSharedWith = shareValidation.sharedWith;
+    shareRecipients = shareValidation.recipients;
+    ownerNameForNotification = shareValidation.ownerName;
+  }
 
   if (currentStatus !== "completed" && nextStatus === "completed" && nextSharedWith.length > 0) {
     return NextResponse.json(
@@ -538,7 +575,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
         : nextProofLabelRaw;
   const rawProofImageDataUrl = body.verificationProofImageDataUrl;
   const proofImageDataUrl =
-    typeof rawProofImageDataUrl === "string"
+    shouldClearProofImages
+      ? ""
+      : typeof rawProofImageDataUrl === "string"
       ? rawProofImageDataUrl.trim().startsWith("data:image/")
         ? rawProofImageDataUrl.trim().slice(0, 2_500_000)
         : ""
@@ -618,6 +657,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
 
   if (!saveResult) {
     return NextResponse.json({ ok: false, message: "Could not update goal right now." }, { status: 503 });
+  }
+
+  const newlySharedRecipients = shareRecipients.filter((recipient) => !currentSharedWith.includes(recipient.email));
+
+  if (newlySharedRecipients.length > 0) {
+    void sendGoalSharedNotifications({
+      ownerName: ownerNameForNotification,
+      ownerEmail: identity.email,
+      goalTitle: task.title,
+      recipients: newlySharedRecipients,
+    });
   }
 
   return NextResponse.json({

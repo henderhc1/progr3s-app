@@ -3,10 +3,12 @@ import { NextResponse } from "next/server";
 import { createSessionValue, normalizeEmail, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getUserModel } from "@/lib/models/User";
+import { isValidUsername, normalizeUsername } from "@/lib/users";
 
 type SignupPayload = {
   name?: string;
   email?: string;
+  username?: string;
   password?: string;
 };
 
@@ -15,6 +17,7 @@ type SignupValidationResult =
       ok: true;
       name: string;
       email: string;
+      username: string;
       password: string;
     }
   | {
@@ -46,6 +49,7 @@ async function readPayload(request: Request): Promise<SignupPayload | null> {
     return {
       name: formData.get("name")?.toString(),
       email: formData.get("email")?.toString(),
+      username: formData.get("username")?.toString(),
       password: formData.get("password")?.toString(),
     };
   }
@@ -56,12 +60,13 @@ async function readPayload(request: Request): Promise<SignupPayload | null> {
 function validatePayload(payload: SignupPayload): SignupValidationResult {
   const name = payload.name?.trim() ?? "";
   const email = normalizeEmail(payload.email);
+  const username = normalizeUsername(payload.username);
   const password = payload.password?.trim() ?? "";
 
-  if (!name || !email || !password) {
+  if (!name || !email || !username || !password) {
     return {
       ok: false,
-      message: "Name, email, and password are required.",
+      message: "Name, email, username, and password are required.",
     };
   }
 
@@ -76,6 +81,13 @@ function validatePayload(payload: SignupPayload): SignupValidationResult {
     return {
       ok: false,
       message: "Enter a valid email address.",
+    };
+  }
+
+  if (!isValidUsername(username)) {
+    return {
+      ok: false,
+      message: "Username must be 3-24 characters and use only letters, numbers, or underscores.",
     };
   }
 
@@ -97,6 +109,7 @@ function validatePayload(payload: SignupPayload): SignupValidationResult {
     ok: true,
     name,
     email,
+    username,
     password,
   };
 }
@@ -120,7 +133,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: "Send JSON or form data with name, email, and password.",
+        message: "Send JSON or form data with name, email, username, and password.",
       },
       { status: 400 },
     );
@@ -175,6 +188,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const existingUsername = await userModel.findOne({ username: validation.username }, { _id: 1 }).lean();
+
+  if (existingUsername) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "That username is already taken.",
+      },
+      { status: 409 },
+    );
+  }
+
   const passwordHash = await bcrypt.hash(validation.password, 10);
 
   let user;
@@ -183,12 +208,29 @@ export async function POST(request: Request) {
     user = await userModel.create({
       name: validation.name,
       email: validation.email,
+      username: validation.username,
       passwordHash,
       role: "user",
       isActive: true,
+      connections: [],
     });
   } catch (error) {
     if (isDuplicateKeyError(error)) {
+      const keyPatternValue = isRecord(error) ? error.keyPattern : null;
+      const keyPattern = isRecord(keyPatternValue)
+        ? Object.keys(keyPatternValue).find((key) => keyPatternValue[key] === 1)
+        : "";
+
+      if (keyPattern === "username") {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: "That username is already taken.",
+          },
+          { status: 409 },
+        );
+      }
+
       return NextResponse.json(
         {
           ok: false,

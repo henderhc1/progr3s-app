@@ -5,6 +5,7 @@ import { TaskModel } from "@/lib/models/Task";
 import { getUserModel } from "@/lib/models/User";
 import { DEMO_ADMIN, DEMO_USER, normalizeEmail } from "@/lib/auth";
 import { getSessionIdentity } from "@/lib/session";
+import { createUniqueUsername } from "@/lib/users";
 
 const DEFAULT_RESET_PASSWORD = "defaultpass";
 
@@ -46,6 +47,7 @@ export async function GET() {
         {
           id: "fallback-admin",
           email: DEMO_ADMIN.email,
+          username: "demo_admin",
           name: DEMO_ADMIN.name,
           role: "admin",
           isActive: true,
@@ -56,6 +58,7 @@ export async function GET() {
         {
           id: "fallback-user",
           email: DEMO_USER.email,
+          username: "demo_user",
           name: DEMO_USER.name,
           role: "user",
           isActive: true,
@@ -80,6 +83,7 @@ export async function GET() {
       return {
         id: user._id.toString(),
         email: user.email,
+        username: typeof user.username === "string" ? user.username : "",
         name: user.name,
         role: user.role,
         isActive: user.isActive,
@@ -150,15 +154,18 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const username = await createUniqueUsername(userModel, name || email.split("@")[0] || "user");
   let user;
 
   try {
     user = await userModel.create({
       name,
       email,
+      username,
       passwordHash,
       role,
       isActive,
+      connections: [],
     });
   } catch (error) {
     if (isDuplicateKeyError(error)) {
@@ -175,6 +182,7 @@ export async function POST(request: Request) {
     user: {
       id: user._id.toString(),
       email: user.email,
+      username: user.username,
       name: user.name,
       role: user.role,
       isActive: user.isActive,

@@ -16,6 +16,7 @@ type SignupResponse = {
 export function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState("Create your account to start tracking progress.");
@@ -34,7 +35,7 @@ export function SignupForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, username, password }),
       });
 
       const data = (await response.json()) as SignupResponse;
@@ -81,6 +82,20 @@ export function SignupForm() {
         placeholder="name@example.com"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
+        required
+      />
+
+      <label htmlFor="username">Username</label>
+      <input
+        id="username"
+        name="username"
+        type="text"
+        placeholder="your_username"
+        minLength={3}
+        maxLength={24}
+        pattern="[A-Za-z0-9_]+"
+        value={username}
+        onChange={(event) => setUsername(event.target.value)}
         required
       />
 

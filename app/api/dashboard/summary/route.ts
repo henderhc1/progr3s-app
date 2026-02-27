@@ -3,6 +3,7 @@ import { DEMO_USER } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getSessionIdentity } from "@/lib/session";
+import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import { computeStreakDays, resolveTaskStatus, toLocalDateKey } from "@/lib/tasks";
 
 function getTodayLabel(): string {
@@ -74,7 +75,7 @@ export async function GET() {
   if (db) {
     const tasks = await TaskModel.find(
       { ownerEmail: identity.email },
-      { status: 1, done: 1, completionDates: 1 },
+      { status: 1, done: 1, scheduledDays: 1, completionDates: 1 },
     )
       .lean()
       .catch(() => null);
@@ -96,10 +97,14 @@ export async function GET() {
     pendingToday = 0;
 
     for (const task of tasks) {
-      const status = resolveTaskStatus(task.status, task.done);
-      const completionDates = Array.isArray(task.completionDates)
-        ? task.completionDates.filter((value): value is string => typeof value === "string")
-        : [];
+      const maintenance = applyTaskMaintenance({
+        status: task.status,
+        done: task.done,
+        scheduledDays: task.scheduledDays,
+        completionDates: task.completionDates,
+      });
+      const status = resolveTaskStatus(maintenance.status, maintenance.done);
+      const completionDates = maintenance.completionDates;
 
       if (status !== "completed") {
         pendingToday += 1;

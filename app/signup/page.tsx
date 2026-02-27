@@ -16,9 +16,9 @@ export default async function SignupPage() {
 
       <section className="login shell-card">
         <div className="login__intro">
-          <p className="eyebrow">Create account</p>
+          <p className="eyebrow">Create account {"\uD83D\uDE80"}</p>
           <h1>Start your progress workspace.</h1>
-          <p>Sign up with name, email, and password. You will be signed in automatically.</p>
+          <p>Sign up with name, email, username, and password. You will be signed in automatically.</p>
         </div>
 
         <SignupForm />

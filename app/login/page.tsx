@@ -17,7 +17,7 @@ export default async function LoginPage() {
 
       <section className="login shell-card">
         <div className="login__intro">
-          <p className="eyebrow">Welcome back</p>
+          <p className="eyebrow">Welcome back {"\uD83D\uDC4B"}</p>
           <h1>Log in to continue building progress.</h1>
           <p>Use your account credentials. If you are new, create an account first.</p>
         </div>

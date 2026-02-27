@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { DEMO_USER } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
+import { getUserModel } from "@/lib/models/User";
+import { sendGoalSharedNotifications } from "@/lib/notifications";
 import { getSessionIdentity } from "@/lib/session";
+import { validateShareRecipients } from "@/lib/sharing";
+import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import {
   computeVerificationState,
   GoalType,
@@ -51,6 +55,7 @@ const demoTasks = [
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
       {
         id: "demo-1-b",
@@ -60,6 +65,7 @@ const demoTasks = [
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
     ],
     verification: {
@@ -91,6 +97,7 @@ const demoTasks = [
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
     ],
     verification: {
@@ -122,6 +129,7 @@ const demoTasks = [
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: toLocalDateKey(),
+        peerConfirmations: [],
       },
       {
         id: "demo-3-b",
@@ -131,6 +139,7 @@ const demoTasks = [
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
     ],
     verification: {
@@ -179,6 +188,7 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
           proofLabel: "",
           proofImageDataUrl: "",
           completedAt: "",
+          peerConfirmations: [],
         },
       ];
     }
@@ -191,6 +201,7 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
       proofLabel: "",
       proofImageDataUrl: "",
       completedAt: "",
+      peerConfirmations: [],
     }));
   }
 
@@ -204,33 +215,12 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
         proofLabel: "",
         proofImageDataUrl: "",
         completedAt: "",
+        peerConfirmations: [],
       },
     ];
   }
 
   return [];
-}
-
-function alignStatusWithGoalTasks(status: ReturnType<typeof resolveTaskStatus>, goalTasks: GoalTaskItem[]) {
-  if (goalTasks.length === 0) {
-    return status;
-  }
-
-  const doneCount = goalTasks.filter((task) => task.done).length;
-
-  if (doneCount === goalTasks.length) {
-    return "completed" as const;
-  }
-
-  if (doneCount === 0) {
-    return "not_started" as const;
-  }
-
-  if (doneCount > 0) {
-    return "in_progress" as const;
-  }
-
-  return status;
 }
 
 function collectCompletionDates(baseDates: unknown, goalTasks: GoalTaskItem[]) {
@@ -276,7 +266,7 @@ function mapTask(task: {
 }) {
   const goalType = normalizeGoalType(task.goalType);
   const goalTasks = normalizeGoalTasks(task.goalTasks);
-  const status = alignStatusWithGoalTasks(resolveTaskStatus(task.status, task.done), goalTasks);
+  const status = resolveTaskStatus(task.status, task.done);
   const sharedWith = normalizeEmailList(task.sharedWith);
   const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(task.verification?.peerConfirmers);
   const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
@@ -355,11 +345,44 @@ export async function GET() {
 
   const tasks = await TaskModel.find({ ownerEmail: identity.email })
     .sort({ createdAt: -1 })
-    .lean()
     .catch(() => null);
 
   if (!tasks) {
     return NextResponse.json({ ok: false, message: "Could not load goals right now." }, { status: 503 });
+  }
+
+  for (const task of tasks) {
+    const maintenance = applyTaskMaintenance({
+      status: task.status,
+      done: task.done,
+      scheduledDays: task.scheduledDays,
+      completionDates: task.completionDates,
+      goalTasks: task.goalTasks,
+      verification: task.verification,
+      sharedWith: task.sharedWith,
+    });
+
+    if (!maintenance.changed) {
+      continue;
+    }
+
+    task.set("goalTasks", maintenance.goalTasks);
+    task.status = maintenance.status;
+    task.done = maintenance.done;
+    task.completionDates = maintenance.completionDates;
+    task.set("verification", {
+      ...maintenance.verification,
+      peerConfirmations: maintenance.verification.peerConfirmations.map((confirmation) => ({
+        email: confirmation.email,
+        confirmedAt: new Date(confirmation.confirmedAt),
+      })),
+    });
+
+    const saveResult = await task.save().catch(() => null);
+
+    if (!saveResult) {
+      return NextResponse.json({ ok: false, message: "Could not refresh weekly goal data right now." }, { status: 503 });
+    }
   }
 
   return NextResponse.json({
@@ -406,7 +429,7 @@ export async function POST(request: Request) {
   const fallbackStatus = typeof body.done === "boolean" ? (body.done ? "completed" : "not_started") : "not_started";
   let status = normalizeTaskStatus(body.status, fallbackStatus);
   const scheduledDays = normalizeScheduledDays(body.scheduledDays);
-  const sharedWith = normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email);
+  let sharedWith = normalizeEmailList(body.sharedWith).filter((email) => email !== identity.email);
   const requestedVerificationModes =
     body.verificationModes !== undefined
       ? normalizeVerificationModes(body.verificationModes)
@@ -414,12 +437,12 @@ export async function POST(request: Request) {
           const legacyMode = normalizeVerificationMode(body.verificationMode);
           return legacyMode === "none" ? [] : [legacyMode];
         })();
-  const verificationModes = mergeVerificationModes(
+  let verificationModes = mergeVerificationModes(
     requestedVerificationModes,
     sharedWith.length > 0 ? ["peer"] : [],
   );
   const peerConfirmers = normalizeEmailList(body.peerConfirmers);
-  const effectivePeerConfirmers = sharedWith.length > 0 ? sharedWith : verificationModes.includes("peer") ? peerConfirmers : [];
+  let effectivePeerConfirmers = sharedWith.length > 0 ? sharedWith : verificationModes.includes("peer") ? peerConfirmers : [];
   const rawProofLabel = typeof body.verificationProofLabel === "string" ? body.verificationProofLabel.trim().slice(0, 160) : "";
   const rawGeolocationLabel =
     typeof body.verificationGeoLabel === "string" ? body.verificationGeoLabel.trim().slice(0, 160) : "";
@@ -429,7 +452,7 @@ export async function POST(request: Request) {
     typeof body.verificationProofImageDataUrl === "string" && body.verificationProofImageDataUrl.trim().startsWith("data:image/")
       ? body.verificationProofImageDataUrl.trim().slice(0, 2_500_000)
       : "";
-  const verificationState = computeVerificationState({
+  let verificationState = computeVerificationState({
     modes: verificationModes,
     photoProofImageDataUrl: proofImageDataUrl,
     geolocationLabel,
@@ -439,8 +462,6 @@ export async function POST(request: Request) {
   const goalType = normalizeGoalType(body.goalType);
   const providedGoalTasks = normalizeGoalTasks(body.goalTasks);
   const goalTasks = providedGoalTasks.length > 0 ? providedGoalTasks : buildDefaultGoalTasks(goalType, scheduledDays);
-
-  status = alignStatusWithGoalTasks(status, goalTasks);
 
   if (sharedWith.length > 0 && status === "completed") {
     status = "not_started";
@@ -461,6 +482,8 @@ export async function POST(request: Request) {
   const completionDates = Array.from(completionDateSet).sort((a, b) => a.localeCompare(b));
 
   let db = null;
+  let shareRecipients: Array<{ email: string; name: string; username: string }> = [];
+  let ownerNameForNotification = identity.name;
 
   try {
     db = await connectToDatabase();
@@ -469,6 +492,13 @@ export async function POST(request: Request) {
   }
 
   if (!db) {
+    if (sharedWith.length > 0) {
+      return NextResponse.json(
+        { ok: false, message: "Sharing requires MongoDB mode and connected users in your network." },
+        { status: 400 },
+      );
+    }
+
     if (identity.email !== DEMO_USER.email) {
       return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
     }
@@ -499,6 +529,33 @@ export async function POST(request: Request) {
     });
   }
 
+  const userModel = getUserModel(db);
+  const shareValidation = await validateShareRecipients({
+    userModel,
+    ownerEmail: identity.email,
+    requestedSharedWith: sharedWith,
+  });
+
+  if (!shareValidation.ok) {
+    return NextResponse.json({ ok: false, message: shareValidation.message }, { status: shareValidation.status });
+  }
+
+  sharedWith = shareValidation.sharedWith;
+  shareRecipients = shareValidation.recipients;
+  ownerNameForNotification = shareValidation.ownerName;
+  verificationModes = mergeVerificationModes(
+    requestedVerificationModes,
+    sharedWith.length > 0 ? ["peer"] : [],
+  );
+  effectivePeerConfirmers = sharedWith.length > 0 ? sharedWith : verificationModes.includes("peer") ? peerConfirmers : [];
+  verificationState = computeVerificationState({
+    modes: verificationModes,
+    photoProofImageDataUrl: proofImageDataUrl,
+    geolocationLabel,
+    peerConfirmers: effectivePeerConfirmers,
+    peerConfirmations: [],
+  });
+
   const task = await TaskModel.create({
     ownerEmail: identity.email,
     title,
@@ -523,6 +580,15 @@ export async function POST(request: Request) {
 
   if (!task) {
     return NextResponse.json({ ok: false, message: "Could not create goal right now." }, { status: 503 });
+  }
+
+  if (shareRecipients.length > 0) {
+    void sendGoalSharedNotifications({
+      ownerName: ownerNameForNotification,
+      ownerEmail: identity.email,
+      goalTitle: title,
+      recipients: shareRecipients,
+    });
   }
 
   return NextResponse.json({

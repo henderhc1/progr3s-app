@@ -15,7 +15,7 @@ type LoginResponse = {
 
 export function LoginForm() {
   // Form fields are controlled to keep UI and state in sync.
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   // Loading state prevents duplicate submits.
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,7 +37,7 @@ export function LoginForm() {
           "Content-Type": "application/json",
         },
         credentials: "same-origin",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
       const rawBody = await response.text();
       let data: LoginResponse | null = null;
@@ -86,14 +86,14 @@ export function LoginForm() {
 
   return (
     <form className="login__form" onSubmit={handleSubmit}>
-      <label htmlFor="email">Email</label>
+      <label htmlFor="identifier">Email or Username</label>
       <input
-        id="email"
-        name="email"
-        type="email"
-        placeholder="name@example.com"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
+        id="identifier"
+        name="identifier"
+        type="text"
+        placeholder="name@example.com or username"
+        value={identifier}
+        onChange={(event) => setIdentifier(event.target.value)}
         required
       />
 

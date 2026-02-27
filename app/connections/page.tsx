@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { ConnectionsClient } from "@/components/connections/ConnectionsClient";
 import { NavBar } from "@/components/ui/NavBar";
 import { getSessionIdentity } from "@/lib/session";
 
-export default async function DashboardPage() {
+export default async function ConnectionsPage() {
   const identity = await getSessionIdentity();
 
   if (!identity) {
@@ -22,9 +22,9 @@ export default async function DashboardPage() {
         showMarketingLinks={false}
         showAdminLink={false}
         showUserLinks
-        activeUserLink="dashboard"
+        activeUserLink="connections"
       />
-      <DashboardClient userName={identity.name} />
+      <ConnectionsClient />
     </main>
   );
 }
