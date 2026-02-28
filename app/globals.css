@@ -213,18 +213,56 @@ a {
 
 .topbar__links {
   display: flex;
-  gap: 16px;
-  color: var(--muted);
-  font-size: 1rem;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.96rem;
+}
+
+.topbar__links a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 172, 214, 0.34);
+  background: linear-gradient(145deg, rgba(13, 25, 39, 0.8), rgba(10, 18, 30, 0.86));
+  color: rgba(188, 226, 255, 0.94);
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 0 1px rgba(124, 207, 255, 0.05) inset;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 .topbar__links a:hover {
   color: var(--text-strong);
+  border-color: rgba(124, 207, 255, 0.66);
+  background: linear-gradient(145deg, rgba(24, 45, 66, 0.7), rgba(14, 29, 45, 0.88));
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(124, 207, 255, 0.14) inset,
+    0 0 14px rgba(124, 207, 255, 0.18);
+}
+
+.topbar__links a:focus-visible {
+  outline: none;
+  border-color: rgba(124, 207, 255, 0.76);
+  box-shadow:
+    0 0 0 2px rgba(124, 207, 255, 0.2),
+    0 0 0 1px rgba(124, 207, 255, 0.14) inset;
 }
 
 .topbar__links a.is-active {
   color: var(--text-strong);
-  text-shadow: 0 0 10px rgba(82, 255, 148, 0.26);
+  border-color: rgba(82, 255, 148, 0.76);
+  background: linear-gradient(145deg, rgba(27, 61, 48, 0.72), rgba(15, 34, 27, 0.86));
+  text-shadow: 0 0 10px rgba(82, 255, 148, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(82, 255, 148, 0.16) inset,
+    0 0 12px rgba(82, 255, 148, 0.16);
 }
 
 .btn {
@@ -476,6 +514,13 @@ h3 {
   background: rgba(13, 22, 34, 0.62);
 }
 
+.task-block--subtasks .subtask-panel {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .subtask-add-row {
   display: grid;
   gap: 8px;
@@ -637,7 +682,7 @@ h3 {
 
 .task-item__expanded {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .task-item__header {
@@ -674,6 +719,77 @@ h3 {
   border: 1px solid var(--line);
   background: var(--panel-soft);
   color: var(--text);
+}
+
+.task-block {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(123, 186, 255, 0.28);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(8, 17, 27, 0.68);
+}
+
+.task-block__label {
+  margin: 0;
+  color: #cbe8ff;
+  font-size: 0.79rem;
+  font-family: var(--font-roboto-mono), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.task-block__heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: center;
+}
+
+.task-block__meta {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-family: var(--font-roboto-mono), monospace;
+}
+
+.task-block--progress {
+  border-color: rgba(124, 207, 255, 0.46);
+  background:
+    radial-gradient(320px 120px at 94% -10%, rgba(124, 207, 255, 0.16), transparent 74%),
+    rgba(10, 20, 31, 0.72);
+}
+
+.task-block--subtasks {
+  border-color: rgba(82, 255, 148, 0.42);
+  background:
+    radial-gradient(320px 130px at -10% -14%, rgba(82, 255, 148, 0.15), transparent 74%),
+    rgba(10, 20, 31, 0.74);
+}
+
+.task-block--status {
+  border-color: rgba(255, 194, 87, 0.42);
+}
+
+.task-block--advanced {
+  border-color: rgba(123, 186, 255, 0.42);
+  background:
+    radial-gradient(440px 160px at 86% -22%, rgba(124, 207, 255, 0.11), transparent 74%),
+    rgba(9, 19, 31, 0.72);
+}
+
+.task-block--advanced .task-advanced {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.task-block--advanced .task-advanced summary {
+  padding: 0;
+}
+
+.task-block--advanced .task-advanced__body {
+  padding: 8px 0 0;
 }
 
 .task-item--not-started {
@@ -1041,9 +1157,39 @@ h3 {
   color: var(--accent-strong);
 }
 
+.goals-overview {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.95fr);
+  align-items: stretch;
+}
+
+.goals-overview__panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(123, 186, 255, 0.28);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(11, 21, 33, 0.66);
+  box-shadow: 0 0 0 1px rgba(124, 207, 255, 0.07) inset;
+}
+
+.goals-overview__panel--tabs {
+  border-color: rgba(82, 255, 148, 0.44);
+}
+
+.goals-overview__panel--progress {
+  border-color: rgba(124, 207, 255, 0.46);
+}
+
+.goals-overview__panel--filter {
+  border-color: rgba(255, 194, 87, 0.4);
+}
+
 .goal-filter-panel {
-  display: inline-grid;
+  display: grid;
   gap: 6px;
+  width: 100%;
   max-width: 230px;
 }
 
@@ -1054,13 +1200,44 @@ h3 {
 
 .goal-filter-panel select {
   padding: 0.62rem 0.74rem;
+  padding-right: 2rem;
   border-radius: 12px;
   border: 1px solid rgba(123, 186, 255, 0.5);
   background:
-    linear-gradient(145deg, rgba(17, 30, 46, 0.9), rgba(12, 22, 35, 0.95));
+    linear-gradient(145deg, rgba(17, 30, 46, 0.9), rgba(12, 22, 35, 0.95)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath fill='%23cae7ff' d='M3.2 4.8 7 8.6l3.8-3.8 1.2 1.2L7 10.9 2 6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 0 0, right 0.68rem center;
+  background-size: auto, 0.9rem 0.9rem;
   color: #cae7ff;
   font-family: var(--font-roboto-mono), monospace;
   box-shadow: 0 0 0 1px rgba(124, 207, 255, 0.08) inset;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  color-scheme: dark;
+}
+
+.goal-filter-panel select:focus {
+  outline: none;
+  border-color: rgba(124, 207, 255, 0.76);
+  box-shadow:
+    0 0 0 2px rgba(124, 207, 255, 0.2),
+    0 0 0 1px rgba(124, 207, 255, 0.08) inset;
+}
+
+.goal-filter-panel select option {
+  background: #0f1c2d;
+  color: #cae7ff;
+}
+
+.goal-filter-panel select::-ms-expand {
+  display: none;
+}
+
+.goals-overview__panel .goal-filter-panel {
+  max-width: none;
 }
 
 .goal-filters {
@@ -1787,6 +1964,10 @@ button.calendar-cell {
   }
 
   .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goals-overview {
     grid-template-columns: 1fr;
   }
 

@@ -7,16 +7,31 @@ import { getSessionIdentity } from "@/lib/session";
 
 const features = [
   {
-    title: "Action-first planning",
-    body: "Break goals into concrete daily tasks and keep your momentum visible.",
+    title: "Goals and routines in one place",
+    body: "Track one-time goals and weekly routines without juggling multiple apps.",
   },
   {
-    title: "Live progress signal",
-    body: "View streak health, output trends, and blocker alerts in one place.",
+    title: "Proof that stays useful",
+    body: "Use photo, location, or connection approval, then keep lightweight proof history in your calendar.",
   },
   {
-    title: "Team-ready structure",
-    body: "A starter layout that can grow into roles, projects, and reporting.",
+    title: "Built for consistency",
+    body: "Break goals into subtasks, stay focused on daily actions, and keep your streak momentum visible.",
+  },
+];
+
+const examples = [
+  {
+    title: "Gym routine",
+    body: "Set Tue/Thu/Fri/Sat training days, track subtasks like Push/Pull/Legs, and repeat weekly.",
+  },
+  {
+    title: "Coding routine",
+    body: "Schedule Thu/Fri/Sat coding blocks with proof and confirmation from your network.",
+  },
+  {
+    title: "One-time goal",
+    body: "Track projects like homework or applications with subtasks until complete.",
   },
 ];
 
@@ -25,7 +40,6 @@ export default async function Home() {
   const hasSession = !!identity;
   const dashboardHref = identity?.role === "admin" ? "/admin" : "/dashboard";
 
-  // Home stays a server component while rendering client components below.
   return (
     <HomeWelcomeTransition>
       <main className="page-wrap">
@@ -33,11 +47,11 @@ export default async function Home() {
 
         <section className="hero shell-card">
           <div>
-            <p className="eyebrow">Productivity Operating System {"\u2728"}</p>
+            <p className="eyebrow">Routines + Goals {"\u2728"}</p>
             <p className="app-motto">Plan it. Prove it. Keep the streak alive.</p>
-            <h1>Progress tracking that feels modern, calm, and practical.</h1>
+            <h1>Stay consistent with goals and routines you can actually keep.</h1>
             <p className="lead">
-              This starter gives you a clean base to keep shipping: landing sections, auth UI, and an API endpoint.
+              Build your weekly routines and one-time goals, add subtasks, and keep a clean verified history you can review anytime.
             </p>
 
             <div className="hero__cta">
@@ -53,23 +67,23 @@ export default async function Home() {
           </div>
 
           <aside className="stat-panel">
-            <h2>Starter status</h2>
+            <h2>What You Can Do</h2>
             <ul>
               <li>
-                <span>UI foundation</span>
-                <strong>Done</strong>
+                <span>Create one-time goals</span>
+                <strong>Homework, projects</strong>
               </li>
               <li>
-                <span>Login view</span>
-                <strong>Done</strong>
+                <span>Set weekly routines</span>
+                <strong>Gym, coding, habits</strong>
               </li>
               <li>
-                <span>Auth API draft</span>
-                <strong>Done</strong>
+                <span>Share with connections</span>
+                <strong>Simple in-app requests</strong>
               </li>
               <li>
-                <span>Database & sessions</span>
-                <strong>In progress</strong>
+                <span>Review completion history</span>
+                <strong>Calendar timeline</strong>
               </li>
             </ul>
           </aside>
@@ -82,16 +96,25 @@ export default async function Home() {
         </section>
 
         <section id="workflow" className="workflow shell-card">
-          <h2>How this can evolve</h2>
+          <h2>How It Works</h2>
           <ol>
-            <li>Create user account and secure session storage.</li>
-            <li>Add dashboard cards for goals, tasks, and streak reports.</li>
-            <li>Connect data layer and move mock API responses to real logic.</li>
+            <li>Add a goal (one-time) or routine (weekly reset).</li>
+            <li>Break it into subtasks and pick your scheduled days.</li>
+            <li>Choose verification type: photo, location, or share with a connection.</li>
+            <li>Track confirmed completions in your calendar and keep progress moving.</li>
           </ol>
         </section>
 
-        {/* Interactive section so the landing page feels more alive. */}
         <ProgressPlayground />
+
+        <section className="teaser shell-card">
+          <h2>Popular Ways To Use Progr3s</h2>
+          <div className="section-grid">
+            {examples.map((example) => (
+              <InfoCard key={example.title} title={example.title} body={example.body} />
+            ))}
+          </div>
+        </section>
       </main>
     </HomeWelcomeTransition>
   );

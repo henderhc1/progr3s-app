@@ -127,6 +127,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, message: "Current and new password are required." }, { status: 400 });
   }
 
+  if (currentPassword.length > 72) {
+    return NextResponse.json({ ok: false, message: "Current password is invalid." }, { status: 400 });
+  }
+
   if (nextPassword.length < 8 || nextPassword.length > 72) {
     return NextResponse.json({ ok: false, message: "New password must be between 8 and 72 characters." }, { status: 400 });
   }

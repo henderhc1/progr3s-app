@@ -19,6 +19,7 @@ export async function GET() {
     user: {
       email: identity.email,
       name: identity.name,
+      username: identity.username,
       role: identity.role,
     },
   });

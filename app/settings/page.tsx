@@ -25,7 +25,13 @@ export default async function SettingsPage() {
         activeUserLink="settings"
       />
 
-      <SettingsClient />
+      <SettingsClient
+        profile={{
+          name: identity.name,
+          username: identity.username,
+          email: identity.email,
+        }}
+      />
     </main>
   );
 }

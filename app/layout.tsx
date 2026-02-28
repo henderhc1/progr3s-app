@@ -16,7 +16,7 @@ const robotoMono = Roboto_Mono({
 
 export const metadata: Metadata = {
   title: "progr3s | Productivity OS",
-  description: "Interactive productivity MVP with login, dashboard, and progress tracking.",
+  description: "Track routines and goals with subtasks, proof, and streak history in one clean workspace.",
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },

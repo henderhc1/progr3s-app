@@ -10,6 +10,11 @@ Next.js full-stack productivity app with role-based access:
 - sharing workflow with cross-user approval queue (`Shared With You`)
 - month-aware completion calendar with streak marks and previous/next month navigation
 
+## Documentation
+
+- User guide: [USER_GUIDE.md](./USER_GUIDE.md)
+- Developer guide: [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)
+
 ## Stack
 
 - Next.js 16 (App Router)

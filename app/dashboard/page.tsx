@@ -24,7 +24,7 @@ export default async function DashboardPage() {
         showUserLinks
         activeUserLink="dashboard"
       />
-      <DashboardClient userName={identity.name} />
+      <DashboardClient userName={identity.name} userUsername={identity.username} />
     </main>
   );
 }

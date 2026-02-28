@@ -9,9 +9,9 @@ type Task = {
 };
 
 const starterTasks: Task[] = [
-  { id: 1, text: "Define today's top priority", done: true },
-  { id: 2, text: "Ship one small frontend improvement", done: false },
-  { id: 3, text: "Review API response handling", done: false },
+  { id: 1, text: "Go to the gym", done: true },
+  { id: 2, text: "Finish coding practice", done: false },
+  { id: 3, text: "Plan tomorrow's top task", done: false },
 ];
 
 export function ProgressPlayground() {
@@ -20,7 +20,7 @@ export function ProgressPlayground() {
   // Controlled input for adding a new task.
   const [draft, setDraft] = useState("");
   // Human-friendly feedback shown after actions.
-  const [message, setMessage] = useState("Tip: complete a task to increase progress.");
+  const [message, setMessage] = useState("Tip: add one small task and check it off.");
 
   // This computed value updates automatically when tasks change.
   const completionPercent = useMemo(() => {
@@ -45,7 +45,7 @@ export function ProgressPlayground() {
       ),
     );
 
-    setMessage("Nice. Progress updated.");
+    setMessage("Progress updated.");
   }
 
   function addTask() {
@@ -53,7 +53,7 @@ export function ProgressPlayground() {
 
     // Basic guard so empty tasks are not added to state.
     if (!trimmedDraft) {
-      setMessage("Please type a task before adding.");
+      setMessage("Type a task first.");
       return;
     }
 
@@ -66,23 +66,26 @@ export function ProgressPlayground() {
 
     setTasks((currentTasks) => [newTask, ...currentTasks]);
     setDraft("");
-    setMessage("Task added. Keep the momentum going.");
+    setMessage("Task added.");
+  }
+
+  function deleteTask(taskId: number) {
+    setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
+    setMessage("Task deleted.");
   }
 
   function clearCompleted() {
     // Remove tasks that are already done.
     setTasks((currentTasks) => currentTasks.filter((task) => !task.done));
-    setMessage("Completed tasks cleared.");
+    setMessage("Completed tasks deleted.");
   }
 
   return (
     <section className="shell-card playground">
       <div className="playground__header">
-        <p className="eyebrow">Live Progress Demo</p>
-        <h2>Interactive focus board</h2>
-        <p className="lead">
-          This is a simple state-driven widget. Add tasks, mark them complete, and watch progress update instantly.
-        </p>
+        <p className="eyebrow">Quick Task Board</p>
+        <h2>Add tasks and clear them fast</h2>
+        <p className="lead">Use this mini board to add, complete, and delete tasks in seconds.</p>
       </div>
 
       <div className="progress-meter" aria-label="Task completion progress">
@@ -115,7 +118,7 @@ export function ProgressPlayground() {
             Add
           </button>
           <button type="button" className="btn btn--ghost" onClick={clearCompleted}>
-            Clear done
+            Delete done
           </button>
         </div>
         <p className="playground__message">{message}</p>
@@ -123,11 +126,16 @@ export function ProgressPlayground() {
 
       <ul className="task-list">
         {tasks.map((task) => (
-          <li key={task.id} className={task.done ? "task-item is-done" : "task-item"}>
-            <button type="button" className="task-item__toggle" onClick={() => toggleTask(task.id)}>
-              {task.done ? "Undo" : "Done"}
-            </button>
-            <span>{task.text}</span>
+          <li key={task.id} className={task.done ? "task-item task-item--completed" : "task-item"}>
+            <div className="task-item__controls">
+              <button type="button" className="btn btn--ghost btn--soft" onClick={() => toggleTask(task.id)}>
+                {task.done ? "Undo" : "Done"}
+              </button>
+              <button type="button" className="btn btn--danger-soft btn--soft" onClick={() => deleteTask(task.id)}>
+                Delete
+              </button>
+            </div>
+            <span className={task.done ? "subtask-title is-done" : "subtask-title"}>{task.text}</span>
           </li>
         ))}
       </ul>

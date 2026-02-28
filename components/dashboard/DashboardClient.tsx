@@ -157,6 +157,7 @@ type PeerRequestApiPayload = {
 
 type DashboardClientProps = {
   userName: string;
+  userUsername: string;
 };
 
 type TaskCategoryTab = "goals" | "routines";
@@ -434,8 +435,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export function DashboardClient({ userName }: DashboardClientProps) {
+export function DashboardClient({ userName, userUsername }: DashboardClientProps) {
   const router = useRouter();
+  const workspaceDisplayName = userUsername.trim() ? `@${userUsername.trim()}` : userName;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [peerRequests, setPeerRequests] = useState<PeerRequest[]>([]);
   const [networkConnections, setNetworkConnections] = useState<NetworkConnection[]>([]);
@@ -658,17 +660,51 @@ export function DashboardClient({ userName }: DashboardClientProps) {
       tasks.filter((task) => (categoryTab === "goals" ? task.goalCadence === "one_time" : task.goalCadence === "weekly")),
     [categoryTab, tasks],
   );
-  const completedCount = useMemo(
-    () => tasksInSelectedCategory.filter((task) => task.status === "completed").length,
-    [tasksInSelectedCategory],
-  );
-  const progressPercent = useMemo(() => {
-    if (tasksInSelectedCategory.length === 0) {
-      return 0;
+  const categoryProgress = useMemo(() => {
+    if (categoryTab === "goals") {
+      const totalGoals = tasksInSelectedCategory.length;
+
+      if (totalGoals === 0) {
+        return {
+          percent: 0,
+          label: "Goal completion",
+          ariaLabel: "Goal completion progress",
+        };
+      }
+
+      const completedGoals = tasksInSelectedCategory.filter((task) => task.status === "completed").length;
+      return {
+        percent: Math.round((completedGoals / totalGoals) * 100),
+        label: "Goal completion",
+        ariaLabel: "Goal completion progress",
+      };
     }
 
-    return Math.round((completedCount / tasksInSelectedCategory.length) * 100);
-  }, [completedCount, tasksInSelectedCategory.length]);
+    let plannedRoutineUnits = 0;
+    let completedRoutineUnits = 0;
+
+    for (const routine of tasksInSelectedCategory) {
+      const plannedUnits =
+        routine.goalTasks.length > 0
+          ? routine.goalTasks.length
+          : routine.scheduledDays.length > 0
+            ? routine.scheduledDays.length
+            : 1;
+
+      const goalTaskCompletions = routine.goalTasks.filter((goalTask) => goalTask.done).length;
+      const completedUnits =
+        routine.status === "completed" ? plannedUnits : Math.min(goalTaskCompletions, plannedUnits);
+
+      plannedRoutineUnits += plannedUnits;
+      completedRoutineUnits += completedUnits;
+    }
+
+    return {
+      percent: plannedRoutineUnits > 0 ? Math.round((completedRoutineUnits / plannedRoutineUnits) * 100) : 0,
+      label: "Routine completion (this week)",
+      ariaLabel: "Weekly routine completion progress",
+    };
+  }, [categoryTab, tasksInSelectedCategory]);
 
   const completionDateSet = useMemo(() => {
     const set = new Set<string>();
@@ -1257,7 +1293,7 @@ export function DashboardClient({ userName }: DashboardClientProps) {
     <section className="dashboard-grid">
       <article className="shell-card dashboard-card dashboard-card--welcome dashboard-card--welcome-animated">
         <p className="eyebrow workspace-eyebrow">Workspace {"\u2728"}</p>
-        <h1 className="workspace-title">{userName}</h1>
+        <h1 className="workspace-title">{workspaceDisplayName}</h1>
         <p className="app-motto app-motto--workspace">Plan it. Prove it. Keep the streak alive.</p>
         {feedback && <p className="dashboard-feedback">{feedback}</p>}
       </article>
@@ -1333,51 +1369,61 @@ export function DashboardClient({ userName }: DashboardClientProps) {
         <h2>Goals And Routines {"\uD83C\uDFAF"}</h2>
         <p className="dashboard-card__hint">Use tabs to switch between one-time goals and weekly routines.</p>
 
-        <div className="goal-filters" role="tablist" aria-label="Goal category">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={categoryTab === "goals"}
-            className={categoryTab === "goals" ? "goal-filter is-active" : "goal-filter"}
-            onClick={() => setCategoryTab("goals")}
-          >
-            Goals
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={categoryTab === "routines"}
-            className={categoryTab === "routines" ? "goal-filter is-active" : "goal-filter"}
-            onClick={() => setCategoryTab("routines")}
-          >
-            Routines
-          </button>
-        </div>
-
-        <div className="progress-meter" aria-label="Goal completion progress">
-          <div className="progress-meter__label">
-            <span>Goal completion</span>
-            <strong>{progressPercent}%</strong>
+        <div className="goals-overview">
+          <div className="goals-overview__panel goals-overview__panel--tabs">
+            <p className="task-section__label">Type</p>
+            <div className="goal-filters" role="tablist" aria-label="Goal category">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={categoryTab === "goals"}
+                className={categoryTab === "goals" ? "goal-filter is-active" : "goal-filter"}
+                onClick={() => setCategoryTab("goals")}
+              >
+                Goals
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={categoryTab === "routines"}
+                className={categoryTab === "routines" ? "goal-filter is-active" : "goal-filter"}
+                onClick={() => setCategoryTab("routines")}
+              >
+                Routines
+              </button>
+            </div>
           </div>
-          <div className="progress-meter__track">
-            <div className="progress-meter__bar" style={{ width: `${progressPercent}%` }} />
-          </div>
-        </div>
 
-        <div className="goal-filter-panel">
-          <label htmlFor="goal-filter">Filter by status</label>
-          <select
-            id="goal-filter"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as TaskFilter)}
-            aria-label="Filter goals"
-          >
-            {FILTER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="goals-overview__panel goals-overview__panel--progress">
+            <p className="task-section__label">Progress</p>
+            <div className="progress-meter" aria-label={categoryProgress.ariaLabel}>
+              <div className="progress-meter__label">
+                <span>{categoryProgress.label}</span>
+                <strong>{categoryProgress.percent}%</strong>
+              </div>
+              <div className="progress-meter__track">
+                <div className="progress-meter__bar" style={{ width: `${categoryProgress.percent}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="goals-overview__panel goals-overview__panel--filter">
+            <div className="goal-filter-panel">
+              <label htmlFor="goal-filter">Filter by status</label>
+              <select
+                id="goal-filter"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value as TaskFilter)}
+                aria-label="Filter goals"
+              >
+                {FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {isLoadingTasks && <p className="lead">Loading goals...</p>}
@@ -1431,169 +1477,184 @@ export function DashboardClient({ userName }: DashboardClientProps) {
                             </div>
                           </div>
 
-                    <div className="goal-progress" aria-label={`${task.title} goal-task completion`}>
-                      <div className="progress-meter__label">
-                        <span>Goal-task progress</span>
-                        <strong>
-                          {completedGoalTaskCount}/{totalGoalTaskCount} ({goalTaskProgressPercent}%)
-                        </strong>
-                      </div>
-                      <div className="progress-meter__track">
-                        <div className="progress-meter__bar" style={{ width: `${goalTaskProgressPercent}%` }} />
-                      </div>
-                    </div>
+                        <div className="task-block task-block--progress">
+                          <p className="task-block__label">Progress & Details</p>
+                          <div className="goal-progress" aria-label={`${task.title} goal-task completion`}>
+                            <div className="progress-meter__label">
+                              <span>Goal-task progress</span>
+                              <strong>
+                                {completedGoalTaskCount}/{totalGoalTaskCount} ({goalTaskProgressPercent}%)
+                              </strong>
+                            </div>
+                            <div className="progress-meter__track">
+                              <div className="progress-meter__bar" style={{ width: `${goalTaskProgressPercent}%` }} />
+                            </div>
+                          </div>
 
-                    <div className="task-meta-row">
-                      <span className={task.goalCadence === "weekly" ? "task-badge task-badge--success" : "task-badge task-badge--info"}>
-                        {GOAL_CADENCE_LABELS[task.goalCadence]}
-                      </span>
-                      <span className="task-badge task-badge--info">{scheduledDaysLabel}</span>
-                      <span className="task-badge task-badge--warn">{verificationModesLabel}</span>
-                      {task.sharedWith.length > 0 && (
-                        <span className="task-badge task-badge--success">
-                          {task.verification.peerConfirmations.length}/{task.sharedWith.length} approvals
-                        </span>
-                      )}
-                    </div>
+                          <div className="task-meta-row">
+                            <span className={task.goalCadence === "weekly" ? "task-badge task-badge--success" : "task-badge task-badge--info"}>
+                              {GOAL_CADENCE_LABELS[task.goalCadence]}
+                            </span>
+                            <span className="task-badge task-badge--info">{scheduledDaysLabel}</span>
+                            <span className="task-badge task-badge--warn">{verificationModesLabel}</span>
+                            {task.sharedWith.length > 0 && (
+                              <span className="task-badge task-badge--success">
+                                {task.verification.peerConfirmations.length}/{task.sharedWith.length} approvals
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="subtask-panel">
-                      <div className="subtask-add-row">
-                        <input
-                          value={subtaskDraftByTaskId[task._id] ?? ""}
-                          disabled={pendingTaskIds[task._id]}
-                          onChange={(event) => setSubtaskDraft(task._id, event.target.value)}
-                          placeholder="Add a subtask..."
-                        />
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--soft"
-                          disabled={pendingTaskIds[task._id]}
-                          onClick={() => void addGoalSubtask(task)}
-                        >
-                          + Subtask
-                        </button>
-                      </div>
+                        <div className="task-block task-block--subtasks">
+                          <div className="task-block__heading">
+                            <p className="task-block__label">Subtasks</p>
+                            <span className="task-block__meta">
+                              {completedGoalTaskCount}/{totalGoalTaskCount} complete
+                            </span>
+                          </div>
+                          <div className="subtask-panel">
+                            <div className="subtask-add-row">
+                              <input
+                                value={subtaskDraftByTaskId[task._id] ?? ""}
+                                disabled={pendingTaskIds[task._id]}
+                                onChange={(event) => setSubtaskDraft(task._id, event.target.value)}
+                                placeholder="Add a subtask..."
+                              />
+                              <button
+                                type="button"
+                                className="btn btn--ghost btn--soft"
+                                disabled={pendingTaskIds[task._id]}
+                                onClick={() => void addGoalSubtask(task)}
+                              >
+                                + Subtask
+                              </button>
+                            </div>
 
-                      {task.goalTasks.length === 0 && (
-                        <p className="goal-proof">Add subtasks to break this goal into clear steps.</p>
-                      )}
+                            {task.goalTasks.length === 0 && (
+                              <p className="goal-proof">Add subtasks to break this goal into clear steps.</p>
+                            )}
 
-                      {task.goalTasks.length > 0 && (
-                        <ul className="subtask-list">
-                          {task.goalTasks.map((goalTask) => (
-                            <li key={`${task._id}-${goalTask.id}`} className="subtask-item">
-                              <div className="subtask-item__main">
-                                <button
-                                  type="button"
-                                  className="btn btn--ghost btn--soft"
-                                  disabled={pendingTaskIds[task._id]}
-                                  onClick={() => toggleGoalSubtaskCompletion(task, goalTask)}
-                                >
-                                  {goalTask.done ? "Undo" : "Done"}
-                                </button>
-                                <span className={goalTask.done ? "subtask-title is-done" : "subtask-title"}>{goalTask.title}</span>
-                                {goalTask.requiresProof && <span className="subtask-proof-badge">Proof required</span>}
-                                <button
-                                  type="button"
-                                  className="btn btn--danger-soft btn--soft"
-                                  disabled={pendingTaskIds[task._id]}
-                                  onClick={() => removeGoalSubtask(task, goalTask.id)}
-                                >
-                                  Remove
-                                </button>
-                              </div>
+                            {task.goalTasks.length > 0 && (
+                              <ul className="subtask-list">
+                                {task.goalTasks.map((goalTask) => (
+                                  <li key={`${task._id}-${goalTask.id}`} className="subtask-item">
+                                    <div className="subtask-item__main">
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--soft"
+                                        disabled={pendingTaskIds[task._id]}
+                                        onClick={() => toggleGoalSubtaskCompletion(task, goalTask)}
+                                      >
+                                        {goalTask.done ? "Undo" : "Done"}
+                                      </button>
+                                      <span className={goalTask.done ? "subtask-title is-done" : "subtask-title"}>{goalTask.title}</span>
+                                      {goalTask.requiresProof && <span className="subtask-proof-badge">Proof required</span>}
+                                      <button
+                                        type="button"
+                                        className="btn btn--danger-soft btn--soft"
+                                        disabled={pendingTaskIds[task._id]}
+                                        onClick={() => removeGoalSubtask(task, goalTask.id)}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
 
-                              {goalTask.requiresProof && (
-                                <div className="subtask-item__proof">
-                                  <label className="proof-upload">
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      capture="environment"
-                                      disabled={pendingTaskIds[task._id]}
-                                      onChange={(event) => {
-                                        const file = event.currentTarget.files?.[0];
+                                    {goalTask.requiresProof && (
+                                      <div className="subtask-item__proof">
+                                        <label className="proof-upload">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            disabled={pendingTaskIds[task._id]}
+                                            onChange={(event) => {
+                                              const file = event.currentTarget.files?.[0];
 
-                                        if (!file) {
-                                          return;
-                                        }
+                                              if (!file) {
+                                                return;
+                                              }
 
-                                        void uploadGoalTaskProof(task, goalTask, file);
-                                        event.currentTarget.value = "";
-                                      }}
-                                    />
-                                    Upload subtask proof
-                                  </label>
-                                  {goalTask.proofLabel && <p className="goal-proof">Subtask proof: {goalTask.proofLabel}</p>}
-                                  {goalTask.proofImageDataUrl && (
-                                    <a
-                                      href={goalTask.proofImageDataUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="shared-proof-card"
-                                    >
-                                      <Image
-                                        src={goalTask.proofImageDataUrl}
-                                        alt={`${goalTask.title} proof`}
-                                        width={220}
-                                        height={160}
-                                        unoptimized
-                                      />
-                                      <span>Open subtask proof</span>
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                                              void uploadGoalTaskProof(task, goalTask, file);
+                                              event.currentTarget.value = "";
+                                            }}
+                                          />
+                                          Upload subtask proof
+                                        </label>
+                                        {goalTask.proofLabel && <p className="goal-proof">Subtask proof: {goalTask.proofLabel}</p>}
+                                        {goalTask.proofImageDataUrl && (
+                                          <a
+                                            href={goalTask.proofImageDataUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="shared-proof-card"
+                                          >
+                                            <Image
+                                              src={goalTask.proofImageDataUrl}
+                                              alt={`${goalTask.title} proof`}
+                                              width={220}
+                                              height={160}
+                                              unoptimized
+                                            />
+                                            <span>Open subtask proof</span>
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="task-item__controls">
-                      <label className="task-status-field">
-                        <span>Status</span>
-                        <select
-                          value={task.status}
-                          disabled={pendingTaskIds[task._id]}
-                          onChange={(event) => {
-                            const nextStatus = normalizeTaskStatus(event.target.value, task.status);
+                        <div className="task-block task-block--status">
+                          <p className="task-block__label">Goal Status</p>
+                          <div className="task-item__controls">
+                            <label className="task-status-field">
+                              <span>Status</span>
+                              <select
+                                value={task.status}
+                                disabled={pendingTaskIds[task._id]}
+                                onChange={(event) => {
+                                  const nextStatus = normalizeTaskStatus(event.target.value, task.status);
 
-                            if (task.sharedWith.length > 0 && nextStatus === "completed" && task.status !== "completed") {
-                              setFeedback("Shared goals are completed by recipient approval.");
-                              return;
-                            }
+                                  if (task.sharedWith.length > 0 && nextStatus === "completed" && task.status !== "completed") {
+                                    setFeedback("Shared goals are completed by recipient approval.");
+                                    return;
+                                  }
 
-                            if (nextStatus === "completed") {
-                              setShowCompletedFolder(true);
-                            }
+                                  if (nextStatus === "completed") {
+                                    setShowCompletedFolder(true);
+                                  }
 
-                            void patchTask(task._id, { status: nextStatus }, "Goal status updated.", true, true);
-                          }}
-                        >
-                          <option value="not_started">Not Started</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed" disabled={task.sharedWith.length > 0 && task.status !== "completed"}>
-                            Completed
-                          </option>
-                        </select>
-                      </label>
-                    </div>
+                                  void patchTask(task._id, { status: nextStatus }, "Goal status updated.", true, true);
+                                }}
+                              >
+                                <option value="not_started">Not Started</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed" disabled={task.sharedWith.length > 0 && task.status !== "completed"}>
+                                  Completed
+                                </option>
+                              </select>
+                            </label>
+                          </div>
+                        </div>
 
-                    <div className="task-item__controls task-item__controls--danger">
-                      <button
-                        type="button"
-                        className="btn btn--danger-soft btn--soft"
-                        disabled={pendingTaskIds[task._id]}
-                        onClick={() => deleteTask(task._id)}
-                      >
-                        Delete goal
-                      </button>
-                    </div>
+                        <div className="task-item__controls task-item__controls--danger">
+                          <button
+                            type="button"
+                            className="btn btn--danger-soft btn--soft"
+                            disabled={pendingTaskIds[task._id]}
+                            onClick={() => deleteTask(task._id)}
+                          >
+                            Delete goal
+                          </button>
+                        </div>
 
-                    <details className="task-advanced">
-                      <summary>Schedule & Verification</summary>
-                      <div className="task-advanced__body">
+                        <div className="task-block task-block--advanced">
+                          <details className="task-advanced">
+                            <summary>Schedule & Verification</summary>
+                            <div className="task-advanced__body">
                         <div className="task-section">
                           <p className="task-section__label">Schedule</p>
                           <div className="day-chip-row">
@@ -1809,8 +1870,9 @@ export function DashboardClient({ userName }: DashboardClientProps) {
                             <span>Open proof image</span>
                           </a>
                         )}
-                      </div>
-                    </details>
+                            </div>
+                          </details>
+                        </div>
                       </div>
                     </details>
                   </li>

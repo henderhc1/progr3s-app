@@ -39,6 +39,7 @@ type LoginValidationResult =
     };
 
 type DemoAccount = typeof DEMO_USER | typeof DEMO_ADMIN;
+const MAX_PASSWORD_LENGTH = 72;
 
 function looksLikeEmail(value: string): boolean {
   const atIndex = value.indexOf("@");
@@ -150,6 +151,13 @@ function validatePayload(payload: LoginPayload): LoginValidationResult {
     };
   }
 
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return {
+      ok: false,
+      message: "Password must be 72 characters or fewer.",
+    };
+  }
+
   return { ok: true, identifier, password };
 }
 
@@ -252,6 +260,16 @@ export async function POST(request: Request) {
       }
 
       if (!user) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: "Invalid email/username or password.",
+          },
+          { status: 401 },
+        );
+      }
+
+      if (typeof user.passwordHash !== "string" || user.passwordHash.length < 20) {
         return NextResponse.json(
           {
             ok: false,

@@ -75,6 +75,7 @@ function parseDateKey(dateKey: string): Date | null {
 function startOfLocalWeek(reference: Date): Date {
   const start = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
   start.setHours(0, 0, 0, 0);
+  // Sunday is treated as week rollover for routine progress reset.
   start.setDate(start.getDate() - start.getDay());
   return start;
 }
@@ -156,8 +157,9 @@ export function applyTaskMaintenance(input: TaskMaintenanceInput, retentionDays 
 
   let status = normalizedStatus;
   let done = status === "completed";
+  const hadCarryoverProgress = normalizedStatus === "completed" || normalizedGoalTasks.some((goalTask) => goalTask.done);
 
-  if (staleFromPreviousWeek && (normalizedStatus === "completed" || done)) {
+  if (staleFromPreviousWeek && hadCarryoverProgress) {
     status = "not_started";
     done = false;
   }

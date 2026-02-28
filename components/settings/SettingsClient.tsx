@@ -13,7 +13,15 @@ type SettingsResponse = {
   };
 };
 
-export function SettingsClient() {
+type SettingsClientProps = {
+  profile: {
+    name: string;
+    username: string;
+    email: string;
+  };
+};
+
+export function SettingsClient({ profile }: SettingsClientProps) {
   const router = useRouter();
   const authRedirectingRef = useRef(false);
   const [message, setMessage] = useState("Manage your account security and personal data.");
@@ -180,6 +188,13 @@ export function SettingsClient() {
     <section className="shell-card dashboard-card settings-card">
       <h1>Settings</h1>
       <p className="lead">Change password, reset your data, or permanently delete your account.</p>
+
+      <div className="task-section settings-block">
+        <p className="task-section__label">Profile</p>
+        <p className="goal-proof">Name: {profile.name}</p>
+        <p className="goal-proof">Username: @{profile.username}</p>
+        <p className="goal-proof">Email: {profile.email}</p>
+      </div>
 
       <div className="task-section settings-block">
         <p className="task-section__label">Change Password</p>
