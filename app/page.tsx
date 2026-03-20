@@ -36,7 +36,7 @@ const visualStories = [
   {
     label: "Outcome",
     title: "Confidence from consistency",
-    imageSrc: "/landing-outcome.png",
+    imageSrc: "/landing-outcome.png?v=20260320-1545",
     imageAlt: "A happy person celebrating after achieving goals and routines.",
   },
 ];
