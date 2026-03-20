@@ -26,18 +26,28 @@ const visualStories = [
     title: "LeetCode problem solved",
     imageSrc: "/landing-goal-leetcode.png",
     imageAlt: "A person working on a coding problem at a laptop as a one-time goal.",
+    imageWidth: 800,
+    imageHeight: 800,
+    maxDisplayPx: 390,
   },
   {
     label: "Routine",
     title: "Gym days completed",
     imageSrc: "/landing-routine.png",
     imageAlt: "A person following a gym routine and lifting weights.",
+    imageWidth: 612,
+    imageHeight: 408,
+    maxDisplayPx: 380,
   },
   {
     label: "Outcome",
     title: "Confidence from consistency",
     imageSrc: "/landing-outcome-v2.png",
     imageAlt: "A happy person celebrating after achieving goals and routines.",
+    imageWidth: 360,
+    imageHeight: 248,
+    maxDisplayPx: 360,
+    preserveOriginal: true,
   },
 ];
 
@@ -102,7 +112,15 @@ export default async function Home() {
             {visualStories.map((story) => (
               <article key={story.title} className="hero-story-card">
                 <div className="hero-story-card__media">
-                  <Image src={story.imageSrc} alt={story.imageAlt} width={900} height={560} sizes="(max-width: 920px) 48vw, 24vw" />
+                  <Image
+                    src={story.imageSrc}
+                    alt={story.imageAlt}
+                    width={story.imageWidth}
+                    height={story.imageHeight}
+                    sizes={`(max-width: 620px) 100vw, (max-width: 920px) 48vw, ${story.maxDisplayPx}px`}
+                    quality={story.preserveOriginal ? 100 : 92}
+                    unoptimized={story.preserveOriginal}
+                  />
                 </div>
                 <div className="hero-story-card__content">
                   <p className="hero-story-card__label">{story.label}</p>
