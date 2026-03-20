@@ -1,14 +1,64 @@
 import Link from "next/link";
 import { Progr3sLogo } from "@/components/ui/Progr3sLogo";
 
-type NavBarProps = {
+type NavigationItem = {
+  href: string;
+  label: string;
+  active?: boolean;
+};
+
+export type NavBarProps = {
   ctaLabel?: string;
   ctaHref?: string;
   showMarketingLinks?: boolean;
   showAdminLink?: boolean;
   showUserLinks?: boolean;
+  showAuthCtas?: boolean;
   activeUserLink?: "dashboard" | "connections" | "settings";
 };
+
+function getNavConfig({
+  showMarketingLinks,
+  showAdminLink,
+  showUserLinks,
+  activeUserLink,
+}: Pick<NavBarProps, "showMarketingLinks" | "showAdminLink" | "showUserLinks" | "activeUserLink">): {
+  ariaLabel: string;
+  links: NavigationItem[];
+} | null {
+  if (showMarketingLinks) {
+    return {
+      ariaLabel: "Primary navigation",
+      links: [
+        { href: "#features", label: "Features" },
+        { href: "#workflow", label: "How It Works" },
+      ],
+    };
+  }
+
+  if (showAdminLink) {
+    return {
+      ariaLabel: "Admin navigation",
+      links: [
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/admin", label: "Admin" },
+      ],
+    };
+  }
+
+  if (showUserLinks) {
+    return {
+      ariaLabel: "User navigation",
+      links: [
+        { href: "/dashboard", label: "Goals", active: activeUserLink === "dashboard" },
+        { href: "/connections", label: "Network", active: activeUserLink === "connections" },
+        { href: "/settings", label: "Settings", active: activeUserLink === "settings" },
+      ],
+    };
+  }
+
+  return null;
+}
 
 export function NavBar({
   ctaLabel = "Login",
@@ -16,9 +66,16 @@ export function NavBar({
   showMarketingLinks = true,
   showAdminLink = false,
   showUserLinks = false,
+  showAuthCtas = false,
   activeUserLink = "dashboard",
 }: NavBarProps) {
   const isLogoutCta = ctaHref === "/api/auth/logout";
+  const navConfig = getNavConfig({
+    showMarketingLinks,
+    showAdminLink,
+    showUserLinks,
+    activeUserLink,
+  });
 
   // Shared nav component so top-level pages stay visually consistent.
   return (
@@ -27,35 +84,26 @@ export function NavBar({
         <Progr3sLogo />
       </Link>
 
-      {showMarketingLinks && (
-        <nav className="topbar__links" aria-label="Primary navigation">
-          <Link href="#features">Features</Link>
-          <Link href="#workflow">How It Works</Link>
+      {navConfig && (
+        <nav className="topbar__links" aria-label={navConfig.ariaLabel}>
+          {navConfig.links.map((link) => (
+            <Link key={link.href} href={link.href} className={link.active ? "is-active" : undefined}>
+              {link.label}
+            </Link>
+          ))}
         </nav>
       )}
 
-      {!showMarketingLinks && showAdminLink && (
-        <nav className="topbar__links" aria-label="Admin navigation">
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/admin">Admin</Link>
-        </nav>
-      )}
-
-      {!showMarketingLinks && !showAdminLink && showUserLinks && (
-        <nav className="topbar__links" aria-label="User navigation">
-          <Link href="/dashboard" className={activeUserLink === "dashboard" ? "is-active" : undefined}>
-            Goals
+      {showAuthCtas ? (
+        <div className="topbar__actions">
+          <Link href="/signup" className="btn btn--primary btn--soft">
+            Sign up
           </Link>
-          <Link href="/connections" className={activeUserLink === "connections" ? "is-active" : undefined}>
-            Network
+          <Link href="/login" className="btn btn--ghost btn--soft">
+            Login
           </Link>
-          <Link href="/settings" className={activeUserLink === "settings" ? "is-active" : undefined}>
-            Settings
-          </Link>
-        </nav>
-      )}
-
-      {isLogoutCta ? (
+        </div>
+      ) : isLogoutCta ? (
         <form method="post" action="/api/auth/logout">
           <button type="submit" className="btn btn--primary">
             {ctaLabel}

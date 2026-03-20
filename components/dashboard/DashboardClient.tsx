@@ -1464,19 +1464,16 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
                   >
                     <details className="task-item__collapse">
                       <summary className="task-item__summary">
-                        <strong>{task.title}</strong>
-                        <span>{collapsedSubtaskLabel}</span>
+                        <div className="task-item__summary-main">
+                          <strong>{task.title}</strong>
+                          <span>{collapsedSubtaskLabel}</span>
+                        </div>
+                        <div className="task-item__summary-pills">
+                          <span className={`task-status task-status--${task.status.replace("_", "-")}`}>{STATUS_LABELS[task.status]}</span>
+                          <span className="task-badge task-badge--info">{goalTaskProgressPercent}% complete</span>
+                        </div>
                       </summary>
                       <div className="task-item__expanded">
-                          <div className="task-item__header">
-                            <strong>{task.title}</strong>
-                            <div className="task-item__header-actions">
-                              <span className={`task-status task-status--${task.status.replace("_", "-")}`}>
-                                {STATUS_LABELS[task.status]}
-                              </span>
-                            </div>
-                          </div>
-
                         <div className="task-block task-block--progress">
                           <p className="task-block__label">Progress & Details</p>
                           <div className="goal-progress" aria-label={`${task.title} goal-task completion`}>
@@ -1943,11 +1940,11 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
 
       <article className="shell-card dashboard-card dashboard-card--peer">
         <h2>Shared With You {"\uD83E\uDD1D"}</h2>
-        <p className="lead">Goals from other users that were shared with your email for approval.</p>
+        <p className="dashboard-card__hint">Review shared goals and approve submitted proof.</p>
 
         {isLoadingPeerRequests && <p className="lead">Loading peer verification queue...</p>}
 
-        {!isLoadingPeerRequests && peerRequests.length === 0 && <p className="lead">No shared goals pending your approval.</p>}
+        {!isLoadingPeerRequests && peerRequests.length === 0 && <p className="lead">No approvals pending right now.</p>}
 
         {!isLoadingPeerRequests && peerRequests.length > 0 && (
           <ul className="peer-request-list">
@@ -1960,18 +1957,20 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
                   </span>
                 </div>
 
-                <p className="goal-proof">Owner: {request.ownerEmail}</p>
-                <p className="goal-proof">Shared with: {request.verification.peerConfirmers.join(", ")}</p>
+                <div className="task-meta-row">
+                  <span className="task-badge task-badge--info">Owner: {request.ownerEmail}</span>
+                  <span className="task-badge task-badge--warn">
+                    Modes: {request.verification.modes.length > 0 ? request.verification.modes.join(", ") : "none"}
+                  </span>
+                  <span className="task-badge task-badge--success">
+                    Approvals: {request.verification.peerConfirmations.length}/{request.verification.peerConfirmers.length}
+                  </span>
+                  {request.verification.geolocationLabel && <span className="task-badge task-badge--warn">Location proof</span>}
+                </div>
                 <p className="goal-proof">
-                  Verification enabled:{" "}
-                  {request.verification.modes.length > 0 ? request.verification.modes.join(", ") : "none"}
+                  Shared with {request.verification.peerConfirmers.length} connection
+                  {request.verification.peerConfirmers.length === 1 ? "" : "s"}.
                 </p>
-                <p className="goal-proof">
-                  Confirmations: {request.verification.peerConfirmations.length}/{request.verification.peerConfirmers.length}
-                </p>
-                {request.verification.geolocationLabel && (
-                  <p className="goal-proof">Location proof: {request.verification.geolocationLabel}</p>
-                )}
                 {request.proofUploads.length > 0 && (
                   <div className="shared-proof-grid">
                     {request.proofUploads.map((upload) => (
@@ -1996,7 +1995,7 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
                   </div>
                 )}
                 {request.proofUploads.length === 0 && (
-                  <p className="goal-proof">No proof uploads attached yet.</p>
+                  <p className="goal-proof">No proof files attached yet.</p>
                 )}
 
                 <div className="task-item__controls">
@@ -2021,7 +2020,7 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
 
       <article className="shell-card dashboard-card">
         <h2>Completion Calendar {"\uD83D\uDCC5"}</h2>
-        <p className="lead">Days are marked when at least one task was completed.</p>
+        <p className="dashboard-card__hint">Marked days include at least one completed task.</p>
         <p className="dashboard-feedback">
           Streak from task history: <strong>{streakFromTasks} day(s)</strong>
         </p>
@@ -2078,7 +2077,7 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
         </div>
         <div className="calendar-day-log">
           {!selectedCalendarDateKey && (
-            <p className="goal-proof">Select a marked day to review completed and confirmed goals.</p>
+            <p className="goal-proof">Select a marked day to review activity.</p>
           )}
 
           {selectedCalendarDateKey && (
@@ -2106,7 +2105,7 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
 
       <article className="shell-card dashboard-card">
         <h2>Verification Signals {"\uD83E\uDDEA"}</h2>
-        <p className="lead">Quick view of proof readiness across your current goals.</p>
+        <p className="dashboard-card__hint">Readiness snapshot across active goals.</p>
         <ul className="summary-list">
           <li>
             <span>Photo proof</span>
@@ -2134,7 +2133,7 @@ export function DashboardClient({ userName, userUsername }: DashboardClientProps
       </article>
 
       <article className="shell-card dashboard-card dashboard-card--summary">
-        <h2>Backend Summary {"\uD83E\uDDFE"}</h2>
+        <h2>Today Summary {"\uD83E\uDDFE"}</h2>
         {isLoadingSummary && <p className="lead">Loading summary...</p>}
 
         {!isLoadingSummary && summary && (

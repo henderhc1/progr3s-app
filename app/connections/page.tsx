@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { ConnectionsClient } from "@/components/connections/ConnectionsClient";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { getSessionIdentity } from "@/lib/session";
 
 export default async function ConnectionsPage() {
@@ -15,16 +15,17 @@ export default async function ConnectionsPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <NavBar
-        ctaLabel="Logout"
-        ctaHref="/api/auth/logout"
-        showMarketingLinks={false}
-        showAdminLink={false}
-        showUserLinks
-        activeUserLink="connections"
-      />
+    <PageShell
+      nav={{
+        ctaLabel: "Logout",
+        ctaHref: "/api/auth/logout",
+        showMarketingLinks: false,
+        showAdminLink: false,
+        showUserLinks: true,
+        activeUserLink: "connections",
+      }}
+    >
       <ConnectionsClient />
-    </main>
+    </PageShell>
   );
 }

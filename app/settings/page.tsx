@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { SettingsClient } from "@/components/settings/SettingsClient";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { getSessionIdentity } from "@/lib/session";
 
 export default async function SettingsPage() {
@@ -15,16 +15,16 @@ export default async function SettingsPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <NavBar
-        ctaLabel="Logout"
-        ctaHref="/api/auth/logout"
-        showMarketingLinks={false}
-        showAdminLink={false}
-        showUserLinks
-        activeUserLink="settings"
-      />
-
+    <PageShell
+      nav={{
+        ctaLabel: "Logout",
+        ctaHref: "/api/auth/logout",
+        showMarketingLinks: false,
+        showAdminLink: false,
+        showUserLinks: true,
+        activeUserLink: "settings",
+      }}
+    >
       <SettingsClient
         profile={{
           name: identity.name,
@@ -32,6 +32,6 @@ export default async function SettingsPage() {
           email: identity.email,
         }}
       />
-    </main>
+    </PageShell>
   );
 }

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { SignupForm } from "@/components/ui/SignupForm";
 import { getSessionIdentity } from "@/lib/session";
 
@@ -11,18 +11,16 @@ export default async function SignupPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <NavBar ctaLabel="Back Home" ctaHref="/" showMarketingLinks={false} />
-
+    <PageShell nav={{ ctaLabel: "Back Home", ctaHref: "/", showMarketingLinks: false }}>
       <section className="login shell-card">
         <div className="login__intro">
-          <p className="eyebrow">Create account {"\uD83D\uDE80"}</p>
+          <p className="eyebrow">Sign up {"\uD83D\uDE80"}</p>
           <h1>Start your progress workspace.</h1>
           <p>Sign up with name, email, username, and password. You will be signed in automatically.</p>
         </div>
 
         <SignupForm />
       </section>
-    </main>
+    </PageShell>
   );
 }

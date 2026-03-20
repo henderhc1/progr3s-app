@@ -26,7 +26,7 @@ type AdminMutationResponse = {
 export function AdminPanelClient({ viewerEmail }: AdminPanelClientProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("Loading admin data...");
+  const [message, setMessage] = useState("Loading admin workspace...");
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createRole, setCreateRole] = useState<"user" | "admin">("user");
@@ -253,9 +253,12 @@ export function AdminPanelClient({ viewerEmail }: AdminPanelClientProps) {
       <div className="admin-panel__header">
         <p className="eyebrow">Admin Console</p>
         <h1>User administration</h1>
-        <p className="lead">
-          Signed in as <strong>{viewerEmail}</strong>. You can create users, reset passwords, delete users, and update roles.
-        </p>
+        <p className="dashboard-card__hint">Signed in as <strong>{viewerEmail}</strong>. Manage users, roles, and access.</p>
+        <div className="task-meta-row">
+          <span className="task-badge task-badge--info">Users: {users.length}</span>
+          <span className="task-badge task-badge--success">Active: {users.filter((entry) => entry.isActive).length}</span>
+          <span className="task-badge task-badge--warn">Admins: {users.filter((entry) => entry.role === "admin").length}</span>
+        </div>
         <p className="dashboard-feedback">{message}</p>
       </div>
 

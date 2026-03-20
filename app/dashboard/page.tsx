@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { getSessionIdentity } from "@/lib/session";
 
 export default async function DashboardPage() {
@@ -15,16 +15,17 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <NavBar
-        ctaLabel="Logout"
-        ctaHref="/api/auth/logout"
-        showMarketingLinks={false}
-        showAdminLink={false}
-        showUserLinks
-        activeUserLink="dashboard"
-      />
+    <PageShell
+      nav={{
+        ctaLabel: "Logout",
+        ctaHref: "/api/auth/logout",
+        showMarketingLinks: false,
+        showAdminLink: false,
+        showUserLinks: true,
+        activeUserLink: "dashboard",
+      }}
+    >
       <DashboardClient userName={identity.name} userUsername={identity.username} />
-    </main>
+    </PageShell>
   );
 }

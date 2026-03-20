@@ -24,7 +24,7 @@ type SettingsClientProps = {
 export function SettingsClient({ profile }: SettingsClientProps) {
   const router = useRouter();
   const authRedirectingRef = useRef(false);
-  const [message, setMessage] = useState("Manage your account security and personal data.");
+  const [message, setMessage] = useState("Update account security and data settings.");
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -187,7 +187,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   return (
     <section className="shell-card dashboard-card settings-card">
       <h1>Settings</h1>
-      <p className="lead">Change password, reset your data, or permanently delete your account.</p>
+      <p className="dashboard-card__hint">Password, data reset, and account controls in one place.</p>
 
       <div className="task-section settings-block">
         <p className="task-section__label">Profile</p>
@@ -242,9 +242,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
 
       <div className="task-section settings-block">
         <p className="task-section__label">Reset Account Data (Keep Account)</p>
-        <p className="goal-proof">
-          Deletes your goals, clears sharing references, and removes network links while keeping your login account.
-        </p>
+        <p className="goal-proof">Removes goals, sharing links, and connections. Your login stays active.</p>
         <input
           type="text"
           value={resetConfirm}
@@ -261,7 +259,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
 
       <div className="task-section settings-block settings-block--danger">
         <p className="task-section__label">Delete Account</p>
-        <p className="goal-proof">Permanently deletes your account and all associated data.</p>
+        <p className="goal-proof">Permanently removes your account and all associated data.</p>
         <input
           type="text"
           value={deleteConfirm}

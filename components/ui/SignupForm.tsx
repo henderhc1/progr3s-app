@@ -19,14 +19,14 @@ export function SignupForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState("Create your account to start tracking progress.");
+  const [feedback, setFeedback] = useState("Sign up to start tracking progress.");
   const [didSucceed, setDidSucceed] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setDidSucceed(false);
-    setFeedback("Creating account...");
+    setFeedback("Signing up...");
 
     try {
       const response = await fetch("/api/auth/signup", {
@@ -47,7 +47,7 @@ export function SignupForm() {
 
       setDidSucceed(true);
       setPassword("");
-      setFeedback(`Account created. Welcome, ${data.user?.name ?? "Builder"}. Redirecting to dashboard...`);
+      setFeedback(`Signup complete. Welcome, ${data.user?.name ?? "Builder"}. Redirecting to dashboard...`);
 
       setTimeout(() => {
         window.location.assign("/dashboard");
@@ -113,7 +113,7 @@ export function SignupForm() {
       />
 
       <button type="submit" className="btn btn--primary btn--full" disabled={isSubmitting}>
-        {isSubmitting ? "Creating account..." : "Create account"}
+        {isSubmitting ? "Signing up..." : "Sign up"}
       </button>
 
       <p className={didSucceed ? "form-feedback form-feedback--ok" : "form-feedback"}>{feedback}</p>

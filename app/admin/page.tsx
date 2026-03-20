@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AdminPanelClient } from "@/components/admin/AdminPanelClient";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { getSessionIdentity } from "@/lib/session";
 
 export default async function AdminPage() {
@@ -15,9 +15,8 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <NavBar ctaLabel="Logout" ctaHref="/api/auth/logout" showMarketingLinks={false} showAdminLink={false} />
+    <PageShell nav={{ ctaLabel: "Logout", ctaHref: "/api/auth/logout", showMarketingLinks: false, showAdminLink: false }}>
       <AdminPanelClient viewerEmail={identity.email} />
-    </main>
+    </PageShell>
   );
 }

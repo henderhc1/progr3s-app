@@ -1,49 +1,63 @@
-import Link from "next/link";
+import Image from "next/image";
 import { InfoCard } from "@/components/ui/InfoCard";
 import { HomeWelcomeTransition } from "@/components/ui/HomeWelcomeTransition";
-import { NavBar } from "@/components/ui/NavBar";
+import { PageShell } from "@/components/ui/PageShell";
 import { ProgressPlayground } from "@/components/ui/ProgressPlayground";
 import { getSessionIdentity } from "@/lib/session";
 
 const features = [
   {
     title: "Goals and routines in one place",
-    body: "Track one-time goals and weekly routines without juggling multiple apps.",
+    body: "Track one-time goals and weekly routines in one clean workspace.",
   },
   {
     title: "Proof that stays useful",
-    body: "Use photo, location, or connection approval, then keep lightweight proof history in your calendar.",
+    body: "Use photo, location, or connection approval with a clear activity trail.",
   },
   {
     title: "Built for consistency",
-    body: "Break goals into subtasks, stay focused on daily actions, and keep your streak momentum visible.",
+    body: "Break work into subtasks and keep your streak visible every day.",
   },
 ];
 
-const examples = [
+const visualStories = [
   {
-    title: "Gym routine",
-    body: "Set Tue/Thu/Fri/Sat training days, track subtasks like Push/Pull/Legs, and repeat weekly.",
+    label: "Goal",
+    title: "LeetCode problem solved",
+    imageSrc: "/landing-goal-leetcode.png",
+    imageAlt: "A person working on a coding problem at a laptop as a one-time goal.",
   },
   {
-    title: "Coding routine",
-    body: "Schedule Thu/Fri/Sat coding blocks with proof and confirmation from your network.",
+    label: "Routine",
+    title: "Gym days completed",
+    imageSrc: "/landing-routine.png",
+    imageAlt: "A person following a gym routine and lifting weights.",
   },
   {
-    title: "One-time goal",
-    body: "Track projects like homework or applications with subtasks until complete.",
+    label: "Outcome",
+    title: "Confidence from consistency",
+    imageSrc: "/landing-outcome.png",
+    imageAlt: "A happy person celebrating after achieving goals and routines.",
   },
 ];
+
+const stickyNotes = [
+  { text: "Dream Big", tone: "dream" },
+  { text: "Set Goals", tone: "goals" },
+  { text: "Take Action", tone: "action" },
+] as const;
 
 export default async function Home() {
   const identity = await getSessionIdentity();
   const hasSession = !!identity;
   const dashboardHref = identity?.role === "admin" ? "/admin" : "/dashboard";
+  const homeNav = hasSession
+    ? { ctaLabel: "Open Dashboard", ctaHref: dashboardHref }
+    : { showAuthCtas: true };
 
   return (
     <HomeWelcomeTransition>
-      <main className="page-wrap">
-        <NavBar ctaLabel={hasSession ? "Open Dashboard" : "Login"} ctaHref={hasSession ? dashboardHref : "/login"} />
+      <PageShell nav={homeNav}>
 
         <section className="hero shell-card">
           <div>
@@ -51,23 +65,19 @@ export default async function Home() {
             <p className="app-motto">Plan it. Prove it. Keep the streak alive.</p>
             <h1>Stay consistent with goals and routines you can actually keep.</h1>
             <p className="lead">
-              Build your weekly routines and one-time goals, add subtasks, and keep a clean verified history you can review anytime.
+              Plan weekly routines and one-time goals, then track progress with clear proof and history.
             </p>
-
-            <div className="hero__cta">
-              <Link href={hasSession ? dashboardHref : "/signup"} className="btn btn--primary">
-                {hasSession ? "Open dashboard" : "Create account"}
-              </Link>
-              {!hasSession && (
-                <Link href="/login" className="btn btn--ghost">
-                  Log in
-                </Link>
-              )}
-            </div>
           </div>
 
           <aside className="stat-panel">
-            <h2>What You Can Do</h2>
+            <div className="hero__notes hero__notes--right" aria-label="Motivation sticky notes">
+              {stickyNotes.map((note) => (
+                <p key={note.text} className={`sticky-note sticky-note--${note.tone}`}>
+                  {note.text}
+                </p>
+              ))}
+            </div>
+            <h2>Core Actions</h2>
             <ul>
               <li>
                 <span>Create one-time goals</span>
@@ -87,12 +97,28 @@ export default async function Home() {
               </li>
             </ul>
           </aside>
+
+          <div className="hero__stories" aria-label="Visual examples of goals, routines, and outcomes">
+            {visualStories.map((story) => (
+              <article key={story.title} className="hero-story-card">
+                <div className="hero-story-card__media">
+                  <Image src={story.imageSrc} alt={story.imageAlt} width={900} height={560} sizes="(max-width: 920px) 48vw, 24vw" />
+                </div>
+                <div className="hero-story-card__content">
+                  <p className="hero-story-card__label">{story.label}</p>
+                  <p className="hero-story-card__title">{story.title}</p>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
-        <section id="features" className="section-grid">
-          {features.map((feature) => (
-            <InfoCard key={feature.title} title={feature.title} body={feature.body} />
-          ))}
+        <section id="features" className="feature-strip shell-card">
+          <div className="section-grid section-grid--feature">
+            {features.map((feature) => (
+              <InfoCard key={feature.title} title={feature.title} body={feature.body} />
+            ))}
+          </div>
         </section>
 
         <section id="workflow" className="workflow shell-card">
@@ -106,16 +132,7 @@ export default async function Home() {
         </section>
 
         <ProgressPlayground />
-
-        <section className="teaser shell-card">
-          <h2>Popular Ways To Use Progr3s</h2>
-          <div className="section-grid">
-            {examples.map((example) => (
-              <InfoCard key={example.title} title={example.title} body={example.body} />
-            ))}
-          </div>
-        </section>
-      </main>
+      </PageShell>
     </HomeWelcomeTransition>
   );
 }

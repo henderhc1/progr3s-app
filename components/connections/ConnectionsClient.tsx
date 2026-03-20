@@ -87,7 +87,7 @@ export function ConnectionsClient() {
   const [incomingRequests, setIncomingRequests] = useState<Connection[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<Connection[]>([]);
   const [draftUsername, setDraftUsername] = useState("");
-  const [message, setMessage] = useState("Manage your connections for goal sharing.");
+  const [message, setMessage] = useState("Manage who can view and approve your shared goals.");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const authRedirectingRef = useRef(false);
@@ -277,8 +277,14 @@ export function ConnectionsClient() {
   return (
     <section className="shell-card dashboard-card">
       <h1>Connections</h1>
-      <p className="lead">Connect by username. Incoming requests appear here for approval before sharing goals.</p>
+      <p className="dashboard-card__hint">Connect by username, then share goals for peer approval.</p>
       <p className="goal-proof">Your username: {selfUsername ? `@${selfUsername}` : "Not available yet"}</p>
+
+      <div className="task-meta-row">
+        <span className="task-badge task-badge--success">Connected: {connections.length}</span>
+        <span className="task-badge task-badge--warn">Incoming: {incomingRequests.length}</span>
+        <span className="task-badge task-badge--info">Sent: {outgoingRequests.length}</span>
+      </div>
 
       <div className="task-item__controls">
         <input
@@ -297,7 +303,7 @@ export function ConnectionsClient() {
       {isLoading && <p className="lead">Loading connections...</p>}
 
       {!isLoading && incomingRequests.length > 0 && (
-        <>
+        <div className="task-section settings-block">
           <h3>Incoming Requests</h3>
           <div className="peer-chip-row">
             {incomingRequests.map((connection) => (
@@ -312,11 +318,11 @@ export function ConnectionsClient() {
               </span>
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {!isLoading && outgoingRequests.length > 0 && (
-        <>
+        <div className="task-section settings-block">
           <h3>Sent Requests</h3>
           <div className="peer-chip-row">
             {outgoingRequests.map((connection) => (
@@ -328,7 +334,7 @@ export function ConnectionsClient() {
               </span>
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {!isLoading && connections.length === 0 && incomingRequests.length === 0 && outgoingRequests.length === 0 && (
@@ -336,7 +342,7 @@ export function ConnectionsClient() {
       )}
 
       {!isLoading && connections.length > 0 && (
-        <>
+        <div className="task-section settings-block">
           <h3>Connected</h3>
           <div className="peer-chip-row">
             {connections.map((connection) => (
@@ -353,7 +359,7 @@ export function ConnectionsClient() {
               </span>
             ))}
           </div>
-        </>
+        </div>
       )}
     </section>
   );
