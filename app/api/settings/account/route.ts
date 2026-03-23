@@ -1,10 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
-import { getUserModel } from "@/lib/models/User";
-import { getSessionIdentity } from "@/lib/session";
+import { UserRouteAccess } from "@/lib/session";
 
 type SettingsPayload = {
   currentPassword?: string;
@@ -18,49 +16,14 @@ type UserSnapshot = {
   isActive: boolean;
 };
 
-async function requireUserAndDb() {
-  const identity = await getSessionIdentity();
-
-  if (!identity) {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  if (identity.role !== "user") {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Settings are user-only." }, { status: 403 }),
-    };
-  }
-
-  let db = null;
-
-  try {
-    db = await connectToDatabase();
-  } catch {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 }),
-    };
-  }
-
-  if (!db) {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Settings actions require MongoDB mode." }, { status: 503 }),
-    };
-  }
-
-  return { ok: true as const, identity, userModel: getUserModel(db) };
+async function requireSettingsAccess() {
+  return UserRouteAccess.create({
+    forbiddenMessage: "Settings are user-only.",
+    databaseRequiredMessage: "Settings actions require MongoDB mode.",
+  });
 }
 
-async function findCurrentUser(auth: Awaited<ReturnType<typeof requireUserAndDb>>) {
-  if (!auth.ok) {
-    return null;
-  }
-
+async function findCurrentUser(auth: UserRouteAccess) {
   return (await auth.userModel.findOne(
     { email: auth.identity.email, isActive: true },
     { _id: 1, email: 1, passwordHash: 1, isActive: 1 },
@@ -90,7 +53,7 @@ async function cleanupSharedReferences(userEmail: string) {
   return cleanupResult.modifiedCount ?? 0;
 }
 
-async function cleanupNetwork(userModel: ReturnType<typeof getUserModel>, userEmail: string) {
+async function cleanupNetwork(userModel: UserRouteAccess["userModel"], userEmail: string) {
   const cleanedOthers = await userModel.updateMany(
     { email: { $ne: userEmail } },
     {
@@ -106,7 +69,7 @@ async function cleanupNetwork(userModel: ReturnType<typeof getUserModel>, userEm
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireUserAndDb();
+  const auth = await requireSettingsAccess();
 
   if (!auth.ok) {
     return auth.response;
@@ -135,7 +98,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, message: "New password must be between 8 and 72 characters." }, { status: 400 });
   }
 
-  const user = await findCurrentUser(auth);
+  const user = await findCurrentUser(auth.access);
 
   if (!user) {
     return NextResponse.json({ ok: false, message: "Account not found." }, { status: 404 });
@@ -154,19 +117,19 @@ export async function PATCH(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(nextPassword, 10);
-  await auth.userModel.updateOne({ _id: user._id }, { $set: { passwordHash } });
+  await auth.access.userModel.updateOne({ _id: user._id }, { $set: { passwordHash } });
 
   return NextResponse.json({ ok: true, message: "Password updated." });
 }
 
 export async function POST() {
-  const auth = await requireUserAndDb();
+  const auth = await requireSettingsAccess();
 
   if (!auth.ok) {
     return auth.response;
   }
 
-  const user = await findCurrentUser(auth);
+  const user = await findCurrentUser(auth.access);
 
   if (!user) {
     return NextResponse.json({ ok: false, message: "Account not found." }, { status: 404 });
@@ -174,9 +137,9 @@ export async function POST() {
 
   const deletedOwnedGoals = await TaskModel.deleteMany({ ownerEmail: user.email });
   const cleanedSharedGoals = await cleanupSharedReferences(user.email);
-  const cleanedConnections = await cleanupNetwork(auth.userModel, user.email);
+  const cleanedConnections = await cleanupNetwork(auth.access.userModel, user.email);
 
-  await auth.userModel.updateOne(
+  await auth.access.userModel.updateOne(
     { _id: user._id },
     {
       $set: {
@@ -199,13 +162,13 @@ export async function POST() {
 }
 
 export async function DELETE() {
-  const auth = await requireUserAndDb();
+  const auth = await requireSettingsAccess();
 
   if (!auth.ok) {
     return auth.response;
   }
 
-  const user = await findCurrentUser(auth);
+  const user = await findCurrentUser(auth.access);
 
   if (!user) {
     return NextResponse.json({ ok: false, message: "Account not found." }, { status: 404 });
@@ -213,9 +176,9 @@ export async function DELETE() {
 
   const deletedOwnedGoals = await TaskModel.deleteMany({ ownerEmail: user.email });
   const cleanedSharedGoals = await cleanupSharedReferences(user.email);
-  const cleanedConnections = await cleanupNetwork(auth.userModel, user.email);
+  const cleanedConnections = await cleanupNetwork(auth.access.userModel, user.email);
 
-  await auth.userModel.deleteOne({ _id: user._id });
+  await auth.access.userModel.deleteOne({ _id: user._id });
 
   const response = NextResponse.json({
     ok: true,

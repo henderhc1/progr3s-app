@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
+import { applyMaintenanceResultToTask, normalizeSharedTaskRecord, toStoredVerification } from "@/lib/taskRecord";
 import { getSessionIdentity } from "@/lib/session";
 import { applyTaskMaintenance } from "@/lib/taskMaintenance";
 import {
@@ -39,72 +40,6 @@ function resolveSharedGoalStatus(
   }
 
   return "in_progress" as const;
-}
-
-function mapConfirmationTask(
-  task: {
-    _id: string | { toString(): string };
-    ownerEmail?: string;
-    title?: string;
-    status?: string;
-    done?: boolean;
-    sharedWith?: unknown;
-    verification?: {
-      mode?: string;
-      modes?: unknown;
-      state?: string;
-      proofLabel?: string;
-      proofImageDataUrl?: string;
-      geolocationLabel?: string;
-      peerConfirmers?: unknown;
-      peerConfirmations?: unknown;
-    } | null;
-  },
-  identityEmail: string,
-) {
-  const sharedWith = normalizeEmailList(task.sharedWith).filter((email) => email !== task.ownerEmail);
-  const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
-    sharedWith.includes(confirmation.email),
-  );
-  const rawProofLabel = typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
-  const rawGeolocationLabel =
-    typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
-  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
-  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
-  const proofImageDataUrl =
-    typeof task.verification?.proofImageDataUrl === "string" && task.verification.proofImageDataUrl.startsWith("data:image/")
-      ? task.verification.proofImageDataUrl
-      : "";
-  const verificationModes = mergeVerificationModes(
-    resolveVerificationModes(task.verification?.modes, task.verification?.mode),
-    ["peer"],
-  );
-  const verificationState = computeVerificationState({
-    modes: verificationModes,
-    photoProofImageDataUrl: proofImageDataUrl,
-    geolocationLabel,
-    peerConfirmers: sharedWith,
-    peerConfirmations,
-  });
-
-  return {
-    _id: typeof task._id === "string" ? task._id : task._id.toString(),
-    ownerEmail: task.ownerEmail ?? "",
-    title: task.title ?? "Untitled goal",
-    status: resolveTaskStatus(task.status, task.done),
-    sharedWith,
-    verification: {
-      mode: verificationModes[0] ?? "none",
-      modes: verificationModes,
-      state: verificationState,
-      proofLabel,
-      proofImageDataUrl,
-      geolocationLabel,
-      peerConfirmers: sharedWith,
-      peerConfirmations,
-    },
-    confirmedByCurrentUser: peerConfirmations.some((confirmation) => confirmation.email === identityEmail),
-  };
 }
 
 async function resolveSharedTask(taskId: string, identityEmail: string) {
@@ -162,17 +97,7 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
   });
 
   if (maintenance.changed) {
-    task.set("goalTasks", maintenance.goalTasks);
-    task.status = maintenance.status;
-    task.done = maintenance.done;
-    task.completionDates = maintenance.completionDates;
-    task.set("verification", {
-      ...maintenance.verification,
-      peerConfirmations: maintenance.verification.peerConfirmations.map((confirmation) => ({
-        email: confirmation.email,
-        confirmedAt: new Date(confirmation.confirmedAt),
-      })),
-    });
+    applyMaintenanceResultToTask(task, maintenance);
   }
 
   const sharedWith = normalizeEmailList(task.sharedWith).filter((email) => email !== task.ownerEmail);
@@ -220,19 +145,19 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
       )
     : normalizeGoalTasks(task.goalTasks);
 
-  task.set("verification", {
-    mode: verificationModes[0] ?? "none",
-    modes: verificationModes,
-    state: verificationState,
-    proofLabel,
-    proofImageDataUrl: nextProofImageDataUrl,
-    geolocationLabel,
-    peerConfirmers: sharedWith,
-    peerConfirmations: peerConfirmations.map((confirmation) => ({
-      email: confirmation.email,
-      confirmedAt: new Date(confirmation.confirmedAt),
-    })),
-  });
+  task.set(
+    "verification",
+    toStoredVerification({
+      mode: verificationModes[0] ?? "none",
+      modes: verificationModes,
+      state: verificationState,
+      proofLabel,
+      proofImageDataUrl: nextProofImageDataUrl,
+      geolocationLabel,
+      peerConfirmers: sharedWith,
+      peerConfirmations,
+    }),
+  );
   task.set("goalTasks", nextGoalTasks);
 
   const currentStatus = resolveTaskStatus(task.status, task.done);
@@ -260,7 +185,7 @@ export async function POST(_request: Request, context: { params: Promise<{ taskI
 
   return NextResponse.json({
     ok: true,
-    task: mapConfirmationTask(task, identity.email),
+    task: normalizeSharedTaskRecord(task, identity.email),
   });
 }
 
@@ -324,19 +249,19 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
     peerConfirmations,
   });
 
-  task.set("verification", {
-    mode: verificationModes[0] ?? "none",
-    modes: verificationModes,
-    state: verificationState,
-    proofLabel,
-    proofImageDataUrl,
-    geolocationLabel,
-    peerConfirmers: sharedWith,
-    peerConfirmations: peerConfirmations.map((confirmation) => ({
-      email: confirmation.email,
-      confirmedAt: new Date(confirmation.confirmedAt),
-    })),
-  });
+  task.set(
+    "verification",
+    toStoredVerification({
+      mode: verificationModes[0] ?? "none",
+      modes: verificationModes,
+      state: verificationState,
+      proofLabel,
+      proofImageDataUrl,
+      geolocationLabel,
+      peerConfirmers: sharedWith,
+      peerConfirmations,
+    }),
+  );
 
   const currentStatus = resolveTaskStatus(task.status, task.done);
   const goalTasks = normalizeGoalTasks(task.goalTasks);
@@ -363,6 +288,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ tas
 
   return NextResponse.json({
     ok: true,
-    task: mapConfirmationTask(task, identity.email),
+    task: normalizeSharedTaskRecord(task, identity.email),
   });
 }

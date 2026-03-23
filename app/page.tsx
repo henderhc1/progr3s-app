@@ -57,6 +57,24 @@ const stickyNotes = [
   { text: "Take Action", tone: "action" },
 ] as const;
 
+const heroFlow = [
+  {
+    step: "01",
+    title: "Plan",
+    detail: "Set one-time goals and weekly routines in the same system.",
+  },
+  {
+    step: "02",
+    title: "Prove",
+    detail: "Use proof or trusted confirmation when consistency matters.",
+  },
+  {
+    step: "03",
+    title: "Review",
+    detail: "Keep a visible history so progress is obvious over time.",
+  },
+] as const;
+
 export default async function Home() {
   const identity = await getSessionIdentity();
   const hasSession = !!identity;
@@ -67,16 +85,27 @@ export default async function Home() {
 
   return (
     <HomeWelcomeTransition>
-      <PageShell nav={homeNav}>
+      <PageShell nav={homeNav} showFooter>
 
         <section className="hero shell-card">
-          <div>
-            <p className="eyebrow">Routines + Goals {"\u2728"}</p>
-            <p className="app-motto">Plan it. Prove it. Keep the streak alive.</p>
-            <h1>Stay consistent with goals and routines you can actually keep.</h1>
+          <div className="hero__intro">
+            <p className="eyebrow">Routines + Goals</p>
+            <h1>
+              Stay consistent with goals and routines you can <span>actually keep.</span>
+            </h1>
             <p className="lead">
               Plan weekly routines and one-time goals, then track progress with clear proof and history.
             </p>
+          </div>
+
+          <div className="hero__figure" aria-label="Progress flow">
+            {heroFlow.map((item) => (
+              <article key={item.step} className="hero-flow-card">
+                <p className="hero-flow-card__step">{item.step}</p>
+                <h2>{item.title}</h2>
+                <p>{item.detail}</p>
+              </article>
+            ))}
           </div>
 
           <aside className="stat-panel">

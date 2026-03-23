@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { DEMO_ADMIN, DEMO_USER, readEmailFromSession, SESSION_COOKIE_NAME, UserRole } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getUserModel } from "@/lib/models/User";
@@ -12,6 +14,110 @@ export type SessionIdentity = {
   isActive: boolean;
   isFallback: boolean;
 };
+
+type GuardFailure = {
+  ok: false;
+  response: NextResponse;
+};
+
+type GuardSuccess<TAccess> = {
+  ok: true;
+  access: TAccess;
+};
+
+type GuardResult<TAccess> = GuardFailure | GuardSuccess<TAccess>;
+
+type DatabaseGuardOptions = {
+  databaseRequiredMessage: string;
+  databaseRequiredStatus?: number;
+  connectionFailureMessage?: string;
+};
+
+type UserGuardOptions = DatabaseGuardOptions & {
+  forbiddenMessage: string;
+};
+
+abstract class DatabaseRouteAccess {
+  protected constructor(
+    public readonly identity: SessionIdentity,
+    private readonly database: NonNullable<Awaited<ReturnType<typeof connectToDatabase>>>,
+  ) {}
+
+  get userModel() {
+    return getUserModel(this.database);
+  }
+}
+
+function isGuardFailure(value: GuardFailure | NonNullable<Awaited<ReturnType<typeof connectToDatabase>>>): value is GuardFailure {
+  return typeof value === "object" && value !== null && "ok" in value && value.ok === false;
+}
+
+async function connectOrFail({
+  databaseRequiredMessage,
+  databaseRequiredStatus = 503,
+  connectionFailureMessage = "Could not connect to database right now.",
+}: DatabaseGuardOptions): Promise<GuardFailure | NonNullable<Awaited<ReturnType<typeof connectToDatabase>>>> {
+  try {
+    const db = await connectToDatabase();
+
+    if (db) {
+      return db;
+    }
+  } catch {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, message: connectionFailureMessage }, { status: 503 }),
+    };
+  }
+
+  return {
+    ok: false,
+    response: NextResponse.json({ ok: false, message: databaseRequiredMessage }, { status: databaseRequiredStatus }),
+  };
+}
+
+export class UserRouteAccess extends DatabaseRouteAccess {
+  static async create(options: UserGuardOptions): Promise<GuardResult<UserRouteAccess>> {
+    const identity = await getSessionIdentity();
+
+    if (!identity) {
+      return {
+        ok: false,
+        response: NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 }),
+      };
+    }
+
+    if (identity.role !== "user") {
+      return {
+        ok: false,
+        response: NextResponse.json({ ok: false, message: options.forbiddenMessage }, { status: 403 }),
+      };
+    }
+
+    const db = await connectOrFail(options);
+    return isGuardFailure(db) ? db : { ok: true, access: new UserRouteAccess(identity, db) };
+  }
+}
+
+export class AdminRouteAccess extends DatabaseRouteAccess {
+  static async create(options: DatabaseGuardOptions): Promise<GuardResult<AdminRouteAccess>> {
+    const identity = await getSessionIdentity();
+
+    if (!identity || identity.role !== "admin") {
+      return {
+        ok: false,
+        response: NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 }),
+      };
+    }
+
+    const db = await connectOrFail({
+      ...options,
+      databaseRequiredStatus: options.databaseRequiredStatus ?? 400,
+    });
+
+    return isGuardFailure(db) ? db : { ok: true, access: new AdminRouteAccess(identity, db) };
+  }
+}
 
 function createCookieFallbackIdentity(email: string): SessionIdentity {
   const nameFromEmail = email.split("@")[0]?.trim();
@@ -99,4 +205,40 @@ export async function getSessionIdentity(): Promise<SessionIdentity | null> {
     isActive: user.isActive,
     isFallback: false,
   };
+}
+
+export async function requireUserPageIdentity() {
+  const identity = await getSessionIdentity();
+
+  if (!identity) {
+    redirect("/login");
+  }
+
+  if (identity.role === "admin") {
+    redirect("/admin");
+  }
+
+  return identity;
+}
+
+export async function requireAdminPageIdentity() {
+  const identity = await getSessionIdentity();
+
+  if (!identity) {
+    redirect("/login");
+  }
+
+  if (identity.role !== "admin") {
+    redirect("/dashboard");
+  }
+
+  return identity;
+}
+
+export async function redirectAuthenticatedUser() {
+  const identity = await getSessionIdentity();
+
+  if (identity) {
+    redirect(identity.role === "admin" ? "/admin" : "/dashboard");
+  }
 }

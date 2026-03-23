@@ -7,7 +7,7 @@ import {
   hasConfiguredDemoCredentials,
   normalizeEmail,
   SESSION_COOKIE_NAME,
-  UserRole,
+  type UserRole,
 } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getUserModel } from "@/lib/models/User";
@@ -28,38 +28,19 @@ type NormalizedIdentifier = {
 };
 
 type LoginValidationResult =
-  | {
-      ok: true;
-      identifier: NormalizedIdentifier;
-      password: string;
-    }
-  | {
-      ok: false;
-      message: string;
-    };
+  | { ok: true; identifier: NormalizedIdentifier; password: string }
+  | { ok: false; message: string };
 
-type DemoAccount = typeof DEMO_USER | typeof DEMO_ADMIN;
+type DemoAccount = (typeof demoAccounts)[number];
+type SessionUser = { email: string; name: string; role: UserRole };
+
 const MAX_PASSWORD_LENGTH = 72;
+const INVALID_CREDENTIALS_MESSAGE = "Invalid email/username or password.";
 
-function looksLikeEmail(value: string): boolean {
-  const atIndex = value.indexOf("@");
-  return atIndex > 0 && atIndex < value.length - 1;
-}
+const fail = (status: number, message: string) => NextResponse.json({ ok: false, message }, { status });
 
-function normalizeIdentifier(payload: LoginPayload): NormalizedIdentifier {
-  const raw = (payload.identifier ?? payload.email ?? payload.username ?? "").trim().toLowerCase();
-  const isEmail = looksLikeEmail(raw);
-
-  return {
-    raw,
-    isEmail,
-    email: isEmail ? normalizeEmail(raw) : "",
-    username: isEmail ? "" : normalizeUsername(raw),
-  };
-}
-
-function toDemoUsername(email: string, fallback: string): string {
-  const derived = email
+const toDemoUsername = (email: string, fallback: string) => {
+  const username = email
     .trim()
     .toLowerCase()
     .split("@")[0]
@@ -68,38 +49,26 @@ function toDemoUsername(email: string, fallback: string): string {
     .replace(/^_+|_+$/g, "")
     .slice(0, 24);
 
-  if (derived && derived.length >= 3) {
-    return derived;
-  }
+  return username && username.length >= 3 ? username : fallback;
+};
 
-  return fallback;
+const demoAccounts = [
+  { ...DEMO_ADMIN, username: toDemoUsername(DEMO_ADMIN.email, "demo_admin") },
+  { ...DEMO_USER, username: toDemoUsername(DEMO_USER.email, "demo_user") },
+] as const;
+
+function normalizeIdentifier(payload: LoginPayload): NormalizedIdentifier {
+  const raw = (payload.identifier ?? payload.email ?? payload.username ?? "").trim().toLowerCase();
+  const isEmail = raw.includes("@") && !raw.startsWith("@") && !raw.endsWith("@");
+  return { raw, isEmail, email: isEmail ? normalizeEmail(raw) : "", username: isEmail ? "" : normalizeUsername(raw) };
 }
 
 function resolveDemoAccount(identifier: NormalizedIdentifier): DemoAccount | null {
-  if (identifier.isEmail) {
-    if (identifier.email === DEMO_ADMIN.email) {
-      return DEMO_ADMIN;
-    }
-
-    if (identifier.email === DEMO_USER.email) {
-      return DEMO_USER;
-    }
-
-    return null;
-  }
-
-  const adminUsername = toDemoUsername(DEMO_ADMIN.email, "demo_admin");
-  const userUsername = toDemoUsername(DEMO_USER.email, "demo_user");
-
-  if (identifier.username === adminUsername) {
-    return DEMO_ADMIN;
-  }
-
-  if (identifier.username === userUsername) {
-    return DEMO_USER;
-  }
-
-  return null;
+  return (
+    demoAccounts.find((account) =>
+      identifier.isEmail ? account.email === identifier.email : account.username === identifier.username,
+    ) ?? null
+  );
 }
 
 async function readPayload(request: Request): Promise<LoginPayload | null> {
@@ -109,21 +78,12 @@ async function readPayload(request: Request): Promise<LoginPayload | null> {
     return (await request.json()) as LoginPayload;
   }
 
-  if (
-    contentType.includes("application/x-www-form-urlencoded") ||
-    contentType.includes("multipart/form-data")
-  ) {
-    const formData = await request.formData();
-
-    return {
-      identifier: formData.get("identifier")?.toString(),
-      email: formData.get("email")?.toString(),
-      username: formData.get("username")?.toString(),
-      password: formData.get("password")?.toString(),
-    };
+  if (!contentType.includes("application/x-www-form-urlencoded") && !contentType.includes("multipart/form-data")) {
+    return null;
   }
 
-  return null;
+  const formData = await request.formData();
+  return Object.fromEntries(["identifier", "email", "username", "password"].map((key) => [key, formData.get(key)?.toString()]));
 }
 
 function validatePayload(payload: LoginPayload): LoginValidationResult {
@@ -131,226 +91,110 @@ function validatePayload(payload: LoginPayload): LoginValidationResult {
   const password = payload.password?.trim() ?? "";
 
   if (!identifier.raw || !password) {
-    return {
-      ok: false,
-      message: "Both email/username and password are required.",
-    };
+    return { ok: false, message: "Both email/username and password are required." };
   }
 
   if (!identifier.isEmail && !isValidUsername(identifier.username)) {
-    return {
-      ok: false,
-      message: "Enter a valid email or username (3-24 letters, numbers, or underscores).",
-    };
+    return { ok: false, message: "Enter a valid email or username (3-24 letters, numbers, or underscores)." };
   }
 
   if (password.length < 8) {
-    return {
-      ok: false,
-      message: "Password must be at least 8 characters.",
-    };
+    return { ok: false, message: "Password must be at least 8 characters." };
   }
 
   if (password.length > MAX_PASSWORD_LENGTH) {
-    return {
-      ok: false,
-      message: "Password must be 72 characters or fewer.",
-    };
+    return { ok: false, message: "Password must be 72 characters or fewer." };
   }
 
   return { ok: true, identifier, password };
 }
 
-function isValidDemoCredential(identifier: NormalizedIdentifier, password: string): boolean {
-  const account = resolveDemoAccount(identifier);
-  return Boolean(account && account.password === password);
-}
-
-export async function POST(request: Request) {
-  let payload: LoginPayload | null = null;
-
-  try {
-    payload = await readPayload(request);
-  } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Invalid request body. Send valid JSON or form data.",
-      },
-      { status: 400 },
-    );
-  }
-
-  if (!payload) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Send JSON or form data with email/username and password.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const validation = validatePayload(payload);
-
-  if (!validation.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: validation.message,
-      },
-      { status: 400 },
-    );
-  }
-
-  const { identifier, password } = validation;
-  const isDemoConfigured = hasConfiguredDemoCredentials();
-
-  let responseUser = {
-    email: DEMO_USER.email,
-    name: DEMO_USER.name,
-    role: DEMO_USER.role as UserRole,
-  };
-
-  let db = null;
-
-  try {
-    db = await connectToDatabase();
-  } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Database connection failed. Please try again soon.",
-      },
-      { status: 503 },
-    );
-  }
-
-  if (db) {
-    try {
-      const userModel = getUserModel(db);
-      const query = identifier.isEmail ? { email: identifier.email } : { username: identifier.username };
-      let user = await userModel.findOne(query);
-
-      if (!user && isValidDemoCredential(identifier, password)) {
-        const demoAccount = resolveDemoAccount(identifier);
-
-        if (demoAccount) {
-          user = await userModel.findOne({ email: demoAccount.email });
-
-          if (!user) {
-            const passwordHash = await bcrypt.hash(demoAccount.password, 10);
-            const username = toDemoUsername(
-              demoAccount.email,
-              demoAccount.role === "admin" ? "demo_admin" : "demo_user",
-            );
-            user = await userModel.create({
-              email: demoAccount.email,
-              name: demoAccount.name,
-              username,
-              passwordHash,
-              role: demoAccount.role,
-              isActive: true,
-              connections: [],
-              connectionRequestsIncoming: [],
-              connectionRequestsOutgoing: [],
-            });
-          }
-        }
-      }
-
-      if (!user) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message: "Invalid email/username or password.",
-          },
-          { status: 401 },
-        );
-      }
-
-      if (typeof user.passwordHash !== "string" || user.passwordHash.length < 20) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message: "Invalid email/username or password.",
-          },
-          { status: 401 },
-        );
-      }
-
-      const matches = await bcrypt.compare(password, user.passwordHash);
-
-      if (!matches || !user.isActive) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message: "Invalid email/username or password.",
-          },
-          { status: 401 },
-        );
-      }
-
-      responseUser = {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown login error";
-      console.error("[auth/login] Database query flow failed", { identifier: identifier.raw, message });
-
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Login is temporarily unavailable. Please retry in a moment.",
-        },
-        { status: 503 },
-      );
-    }
-  } else {
-    if (!isDemoConfigured) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Demo fallback is not configured. Set DEMO_* variables in .env.local.",
-        },
-        { status: 503 },
-      );
-    }
-
-    const demoAccount = resolveDemoAccount(identifier);
-
-    if (!demoAccount || demoAccount.password !== password) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Invalid email/username or password for the demo account.",
-        },
-        { status: 401 },
-      );
-    }
-
-    responseUser = {
-      email: demoAccount.email,
-      name: demoAccount.name,
-      role: demoAccount.role,
-    };
-  }
-
-  const response = NextResponse.json({
-    ok: true,
-    token: "dev_mock_session_token",
-    user: responseUser,
-  });
-
-  response.cookies.set(SESSION_COOKIE_NAME, createSessionValue(responseUser.email), {
+function createSessionResponse(user: SessionUser) {
+  const response = NextResponse.json({ ok: true, token: "dev_mock_session_token", user });
+  response.cookies.set(SESSION_COOKIE_NAME, createSessionValue(user.email), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 8,
   });
-
   return response;
+}
+
+export async function POST(request: Request) {
+  const payload = await readPayload(request).catch(() => undefined);
+
+  if (payload === undefined) {
+    return fail(400, "Invalid request body. Send valid JSON or form data.");
+  }
+
+  if (!payload) {
+    return fail(400, "Send JSON or form data with email/username and password.");
+  }
+
+  const validation = validatePayload(payload);
+
+  if (!validation.ok) {
+    return fail(400, validation.message);
+  }
+
+  const { identifier, password } = validation;
+  const demoAccount = resolveDemoAccount(identifier);
+  const validDemoCredential = demoAccount?.password === password;
+
+  let db = null;
+
+  try {
+    db = await connectToDatabase();
+  } catch {
+    return fail(503, "Database connection failed. Please try again soon.");
+  }
+
+  if (!db) {
+    if (!hasConfiguredDemoCredentials()) {
+      return fail(503, "Demo fallback is not configured. Set DEMO_* variables in .env.local.");
+    }
+
+    return validDemoCredential
+      ? createSessionResponse({ email: demoAccount.email, name: demoAccount.name, role: demoAccount.role })
+      : fail(401, "Invalid email/username or password for the demo account.");
+  }
+
+  try {
+    const userModel = getUserModel(db);
+    const query = identifier.isEmail ? { email: identifier.email } : { username: identifier.username };
+    let user = await userModel.findOne(query);
+
+    if (!user && validDemoCredential) {
+      user =
+        (await userModel.findOne({ email: demoAccount.email })) ??
+        (await userModel.create({
+          email: demoAccount.email,
+          name: demoAccount.name,
+          username: demoAccount.username,
+          passwordHash: await bcrypt.hash(demoAccount.password, 10),
+          role: demoAccount.role,
+          isActive: true,
+          connections: [],
+          connectionRequestsIncoming: [],
+          connectionRequestsOutgoing: [],
+        }));
+    }
+
+    if (!user || typeof user.passwordHash !== "string" || user.passwordHash.length < 20) {
+      return fail(401, INVALID_CREDENTIALS_MESSAGE);
+    }
+
+    if (!(await bcrypt.compare(password, user.passwordHash)) || !user.isActive) {
+      return fail(401, INVALID_CREDENTIALS_MESSAGE);
+    }
+
+    return createSessionResponse({ email: user.email, name: user.name, role: user.role });
+  } catch (error) {
+    console.error("[auth/login] Database query flow failed", {
+      identifier: identifier.raw,
+      message: error instanceof Error ? error.message : "Unknown login error",
+    });
+    return fail(503, "Login is temporarily unavailable. Please retry in a moment.");
+  }
 }

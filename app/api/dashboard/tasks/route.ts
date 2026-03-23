@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { getUserModel } from "@/lib/models/User";
 import { sendGoalSharedNotifications } from "@/lib/notifications";
+import { applyMaintenanceResultToTask, createGoalTaskId, normalizeTaskRecord } from "@/lib/taskRecord";
 import { getSessionIdentity } from "@/lib/session";
 import { validateShareRecipients } from "@/lib/sharing";
 import { applyTaskMaintenance } from "@/lib/taskMaintenance";
@@ -16,13 +17,10 @@ import {
   normalizeGoalCadence,
   normalizeGoalTasks,
   normalizeGoalType,
-  normalizePeerConfirmations,
   normalizeScheduledDays,
   normalizeTaskStatus,
   normalizeVerificationMode,
   normalizeVerificationModes,
-  resolveTaskStatus,
-  resolveVerificationModes,
   toLocalDateKey,
 } from "@/lib/tasks";
 
@@ -177,16 +175,12 @@ type CreateTaskPayload = {
   goalTasks?: GoalTaskPayload[];
 };
 
-function buildGoalTaskId(seed = "") {
-  return `goal-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${seed ? `-${seed}` : ""}`;
-}
-
 function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): GoalTaskItem[] {
   if (goalType === "gym") {
     if (scheduledDays.length === 0) {
       return [
         {
-          id: buildGoalTaskId("gym"),
+          id: createGoalTaskId("gym"),
           title: "Workout session",
           done: false,
           requiresProof: true,
@@ -199,7 +193,7 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
     }
 
     return scheduledDays.map((day) => ({
-      id: buildGoalTaskId(`gym-${day}`),
+      id: createGoalTaskId(`gym-${day}`),
       title: `Workout ${DAY_LABELS[day]}`,
       done: false,
       requiresProof: true,
@@ -213,7 +207,7 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
   if (goalType === "programming") {
     return [
       {
-        id: buildGoalTaskId("code"),
+        id: createGoalTaskId("code"),
         title: "Solve one coding problem",
         done: false,
         requiresProof: true,
@@ -226,102 +220,6 @@ function buildDefaultGoalTasks(goalType: GoalType, scheduledDays: number[]): Goa
   }
 
   return [];
-}
-
-function collectCompletionDates(baseDates: unknown, goalTasks: GoalTaskItem[]) {
-  const dateSet = new Set<string>();
-
-  if (Array.isArray(baseDates)) {
-    for (const value of baseDates) {
-      if (typeof value === "string") {
-        dateSet.add(value);
-      }
-    }
-  }
-
-  for (const task of goalTasks) {
-    if (task.completedAt) {
-      dateSet.add(task.completedAt);
-    }
-  }
-
-  return Array.from(dateSet).sort((a, b) => a.localeCompare(b));
-}
-
-function mapTask(task: {
-  _id: string | { toString(): string };
-  title?: string;
-  goalType?: string;
-  goalCadence?: string;
-  goalTasks?: unknown;
-  status?: string;
-  done?: boolean;
-  scheduledDays?: unknown;
-  completionDates?: unknown;
-  verification?: {
-    mode?: string;
-    modes?: unknown;
-    state?: string;
-    proofLabel?: string;
-    proofImageDataUrl?: string;
-    geolocationLabel?: string;
-    peerConfirmers?: unknown;
-    peerConfirmations?: unknown;
-  } | null;
-  sharedWith?: unknown;
-}) {
-  const goalType = normalizeGoalType(task.goalType);
-  const goalCadence = normalizeGoalCadence(task.goalCadence);
-  const goalTasks = normalizeGoalTasks(task.goalTasks);
-  const status = resolveTaskStatus(task.status, task.done);
-  const sharedWith = normalizeEmailList(task.sharedWith);
-  const peerConfirmers = sharedWith.length > 0 ? sharedWith : normalizeEmailList(task.verification?.peerConfirmers);
-  const peerConfirmations = normalizePeerConfirmations(task.verification?.peerConfirmations).filter((confirmation) =>
-    peerConfirmers.includes(confirmation.email),
-  );
-  const rawProofLabel = typeof task.verification?.proofLabel === "string" ? task.verification.proofLabel.trim() : "";
-  const rawGeolocationLabel =
-    typeof task.verification?.geolocationLabel === "string" ? task.verification.geolocationLabel.trim() : "";
-  const geolocationLabel = rawGeolocationLabel || (rawProofLabel.startsWith("geo:") ? rawProofLabel : "");
-  const proofLabel = geolocationLabel && rawProofLabel === geolocationLabel ? "" : rawProofLabel;
-  const proofImageDataUrl =
-    typeof task.verification?.proofImageDataUrl === "string" && task.verification.proofImageDataUrl.startsWith("data:image/")
-      ? task.verification.proofImageDataUrl
-      : "";
-  const verificationModes = mergeVerificationModes(
-    resolveVerificationModes(task.verification?.modes, task.verification?.mode),
-    sharedWith.length > 0 ? ["peer"] : [],
-  );
-  const verificationState = computeVerificationState({
-    modes: verificationModes,
-    photoProofImageDataUrl: proofImageDataUrl,
-    geolocationLabel,
-    peerConfirmers,
-    peerConfirmations,
-  });
-
-  return {
-    _id: typeof task._id === "string" ? task._id : task._id.toString(),
-    title: task.title ?? "Untitled goal",
-    goalType,
-    goalCadence,
-    goalTasks,
-    status,
-    done: status === "completed",
-    scheduledDays: normalizeScheduledDays(task.scheduledDays),
-    completionDates: collectCompletionDates(task.completionDates, goalTasks),
-    verification: {
-      mode: verificationModes[0] ?? "none",
-      modes: verificationModes,
-      state: verificationState,
-      proofLabel,
-      proofImageDataUrl,
-      geolocationLabel,
-      peerConfirmers,
-      peerConfirmations,
-    },
-    sharedWith,
-  };
 }
 
 export async function GET() {
@@ -348,7 +246,7 @@ export async function GET() {
       return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.json({ ok: true, tasks: demoTasks.map(mapTask) });
+    return NextResponse.json({ ok: true, tasks: demoTasks.map(normalizeTaskRecord) });
   }
 
   const tasks = await TaskModel.find({ ownerEmail: identity.email })
@@ -375,17 +273,7 @@ export async function GET() {
       continue;
     }
 
-    task.set("goalTasks", maintenance.goalTasks);
-    task.status = maintenance.status;
-    task.done = maintenance.done;
-    task.completionDates = maintenance.completionDates;
-    task.set("verification", {
-      ...maintenance.verification,
-      peerConfirmations: maintenance.verification.peerConfirmations.map((confirmation) => ({
-        email: confirmation.email,
-        confirmedAt: new Date(confirmation.confirmedAt),
-      })),
-    });
+    applyMaintenanceResultToTask(task, maintenance);
 
     const saveResult = await task.save().catch(() => null);
 
@@ -396,7 +284,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    tasks: tasks.map(mapTask),
+    tasks: tasks.map(normalizeTaskRecord),
   });
 }
 
@@ -515,7 +403,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      task: mapTask({
+      task: normalizeTaskRecord({
         _id: `demo-${Date.now()}`,
         title,
         goalType,
@@ -605,9 +493,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    task: {
-      ...mapTask(task),
-      goalCadence,
-    },
+    task: normalizeTaskRecord(task),
   });
 }

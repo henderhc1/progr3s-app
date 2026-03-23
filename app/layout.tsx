@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Roboto, Roboto_Mono } from "next/font/google";
+import { Roboto, Roboto_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const robotoSans = Roboto({
@@ -12,6 +12,12 @@ const robotoMono = Roboto_Mono({
   variable: "--font-roboto-mono",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+});
+
+const displayFont = Space_Grotesk({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${robotoSans.variable} ${robotoMono.variable}`}>
+      <body className={`${robotoSans.variable} ${robotoMono.variable} ${displayFont.variable}`}>
         {children}
       </body>
     </html>

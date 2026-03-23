@@ -1,21 +1,13 @@
-import { redirect } from "next/navigation";
 import { AdminPanelClient } from "@/components/admin/AdminPanelClient";
 import { PageShell } from "@/components/ui/PageShell";
-import { getSessionIdentity } from "@/lib/session";
+import { createAdminShellNav } from "@/components/ui/NavBar";
+import { requireAdminPageIdentity } from "@/lib/session";
 
 export default async function AdminPage() {
-  const identity = await getSessionIdentity();
-
-  if (!identity) {
-    redirect("/login");
-  }
-
-  if (identity.role !== "admin") {
-    redirect("/dashboard");
-  }
+  const identity = await requireAdminPageIdentity();
 
   return (
-    <PageShell nav={{ ctaLabel: "Logout", ctaHref: "/api/auth/logout", showMarketingLinks: false, showAdminLink: false }}>
+    <PageShell nav={createAdminShellNav()}>
       <AdminPanelClient viewerEmail={identity.email} />
     </PageShell>
   );

@@ -13,7 +13,7 @@ export function HomeWelcomeTransition({ children }: HomeWelcomeTransitionProps) 
   useEffect(() => {
     const timeout = setTimeout(() => {
       setIsDone(true);
-    }, 2200);
+    }, 1600);
 
     return () => {
       clearTimeout(timeout);

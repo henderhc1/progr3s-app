@@ -1,10 +1,8 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
-import { getUserModel } from "@/lib/models/User";
-import { getSessionIdentity } from "@/lib/session";
+import { AdminRouteAccess } from "@/lib/session";
 
 const DEFAULT_RESET_PASSWORD = "defaultpass";
 
@@ -23,39 +21,14 @@ type UserUpdateData = {
   passwordHash?: string;
 };
 
-async function requireAdminAndDb() {
-  const identity = await getSessionIdentity();
-
-  if (!identity || identity.role !== "admin") {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 }),
-    };
-  }
-
-  let db = null;
-
-  try {
-    db = await connectToDatabase();
-  } catch {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 }),
-    };
-  }
-
-  if (!db) {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ ok: false, message: "Admin edits require MongoDB mode." }, { status: 400 }),
-    };
-  }
-
-  return { ok: true as const, identity, db };
+async function requireAdminAccess() {
+  return AdminRouteAccess.create({
+    databaseRequiredMessage: "Admin edits require MongoDB mode.",
+  });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
-  const auth = await requireAdminAndDb();
+  const auth = await requireAdminAccess();
 
   if (!auth.ok) {
     return auth.response;
@@ -75,14 +48,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, message: "Invalid request body." }, { status: 400 });
   }
 
-  const userModel = getUserModel(auth.db);
+  const userModel = auth.access.userModel;
   const targetUser = await userModel.findById(userId, { email: 1 }).lean();
 
   if (!targetUser) {
     return NextResponse.json({ ok: false, message: "User not found." }, { status: 404 });
   }
 
-  const isSelfUpdate = targetUser.email === auth.identity.email;
+  const isSelfUpdate = targetUser.email === auth.access.identity.email;
 
   if (isSelfUpdate && body.role === "user") {
     return NextResponse.json(
@@ -164,7 +137,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ userId: string }> }) {
-  const auth = await requireAdminAndDb();
+  const auth = await requireAdminAccess();
 
   if (!auth.ok) {
     return auth.response;
@@ -176,14 +149,14 @@ export async function DELETE(_request: Request, context: { params: Promise<{ use
     return NextResponse.json({ ok: false, message: "Invalid user id." }, { status: 400 });
   }
 
-  const userModel = getUserModel(auth.db);
+  const userModel = auth.access.userModel;
   const user = await userModel.findById(userId).lean();
 
   if (!user) {
     return NextResponse.json({ ok: false, message: "User not found." }, { status: 404 });
   }
 
-  if (user.email === auth.identity.email) {
+  if (user.email === auth.access.identity.email) {
     return NextResponse.json({ ok: false, message: "You cannot delete your own admin account." }, { status: 400 });
   }
 

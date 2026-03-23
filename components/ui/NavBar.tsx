@@ -15,14 +15,53 @@ export type NavBarProps = {
   showUserLinks?: boolean;
   showAuthCtas?: boolean;
   activeUserLink?: "dashboard" | "connections" | "settings";
+  activeMarketingLink?: "about" | "contact";
 };
+
+const LOGOUT_NAV = {
+  ctaLabel: "Logout",
+  ctaHref: "/api/auth/logout",
+  showMarketingLinks: false,
+} satisfies NavBarProps;
+
+export const BACK_HOME_NAV = {
+  ctaLabel: "Back Home",
+  ctaHref: "/",
+  showMarketingLinks: false,
+} satisfies NavBarProps;
+
+export function createMarketingPageNav(activeMarketingLink?: NonNullable<NavBarProps["activeMarketingLink"]>): NavBarProps {
+  return {
+    ctaLabel: "Sign up",
+    ctaHref: "/signup",
+    showMarketingLinks: true,
+    activeMarketingLink,
+  };
+}
+
+export function createUserShellNav(activeUserLink: NonNullable<NavBarProps["activeUserLink"]>): NavBarProps {
+  return {
+    ...LOGOUT_NAV,
+    showAdminLink: false,
+    showUserLinks: true,
+    activeUserLink,
+  };
+}
+
+export function createAdminShellNav(): NavBarProps {
+  return {
+    ...LOGOUT_NAV,
+    showAdminLink: false,
+  };
+}
 
 function getNavConfig({
   showMarketingLinks,
   showAdminLink,
   showUserLinks,
   activeUserLink,
-}: Pick<NavBarProps, "showMarketingLinks" | "showAdminLink" | "showUserLinks" | "activeUserLink">): {
+  activeMarketingLink,
+}: Pick<NavBarProps, "showMarketingLinks" | "showAdminLink" | "showUserLinks" | "activeUserLink" | "activeMarketingLink">): {
   ariaLabel: string;
   links: NavigationItem[];
 } | null {
@@ -30,8 +69,10 @@ function getNavConfig({
     return {
       ariaLabel: "Primary navigation",
       links: [
-        { href: "#features", label: "Features" },
-        { href: "#workflow", label: "How It Works" },
+        { href: "/#features", label: "Features" },
+        { href: "/#workflow", label: "How It Works" },
+        { href: "/about", label: "About", active: activeMarketingLink === "about" },
+        { href: "/contact", label: "Contact", active: activeMarketingLink === "contact" },
       ],
     };
   }
@@ -68,6 +109,7 @@ export function NavBar({
   showUserLinks = false,
   showAuthCtas = false,
   activeUserLink = "dashboard",
+  activeMarketingLink,
 }: NavBarProps) {
   const isLogoutCta = ctaHref === "/api/auth/logout";
   const navConfig = getNavConfig({
@@ -75,6 +117,7 @@ export function NavBar({
     showAdminLink,
     showUserLinks,
     activeUserLink,
+    activeMarketingLink,
   });
 
   // Shared nav component so top-level pages stay visually consistent.

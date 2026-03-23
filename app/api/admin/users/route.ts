@@ -1,10 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
-import { getUserModel } from "@/lib/models/User";
 import { DEMO_ADMIN, DEMO_USER, normalizeEmail } from "@/lib/auth";
-import { getSessionIdentity } from "@/lib/session";
+import { AdminRouteAccess } from "@/lib/session";
 import { createUniqueUsername } from "@/lib/users";
 
 const DEFAULT_RESET_PASSWORD = "defaultpass";
@@ -25,53 +23,31 @@ function isDuplicateKeyError(error: unknown): boolean {
   return isRecord(error) && error.code === 11000;
 }
 
+async function requireAdminAccess() {
+  return AdminRouteAccess.create({
+    databaseRequiredMessage: "Admin edits require MongoDB mode.",
+  });
+}
+
 export async function GET() {
-  const identity = await getSessionIdentity();
+  const auth = await requireAdminAccess();
 
-  if (!identity || identity.role !== "admin") {
-    return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
-  }
+  if (!auth.ok) {
+    if (auth.response.status !== 400) {
+      return auth.response;
+    }
 
-  let db = null;
-
-  try {
-    db = await connectToDatabase();
-  } catch {
-    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
-  }
-
-  if (!db) {
+    const createdAt = new Date().toISOString();
     return NextResponse.json({
       ok: true,
       users: [
-        {
-          id: "fallback-admin",
-          email: DEMO_ADMIN.email,
-          username: "demo_admin",
-          name: DEMO_ADMIN.name,
-          role: "admin",
-          isActive: true,
-          taskCount: 3,
-          completedCount: 1,
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "fallback-user",
-          email: DEMO_USER.email,
-          username: "demo_user",
-          name: DEMO_USER.name,
-          role: "user",
-          isActive: true,
-          taskCount: 3,
-          completedCount: 1,
-          createdAt: new Date().toISOString(),
-        },
+        { id: "fallback-admin", email: DEMO_ADMIN.email, username: "demo_admin", name: DEMO_ADMIN.name, role: "admin", isActive: true, taskCount: 3, completedCount: 1, createdAt },
+        { id: "fallback-user", email: DEMO_USER.email, username: "demo_user", name: DEMO_USER.name, role: "user", isActive: true, taskCount: 3, completedCount: 1, createdAt },
       ],
     });
   }
 
-  const userModel = getUserModel(db);
-  const users = await userModel.find().sort({ createdAt: -1 }).lean();
+  const users = await auth.access.userModel.find().sort({ createdAt: -1 }).lean();
 
   const usersWithCounts = await Promise.all(
     users.map(async (user) => {
@@ -98,22 +74,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const identity = await getSessionIdentity();
+  const auth = await requireAdminAccess();
 
-  if (!identity || identity.role !== "admin") {
-    return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
-  }
-
-  let db = null;
-
-  try {
-    db = await connectToDatabase();
-  } catch {
-    return NextResponse.json({ ok: false, message: "Could not connect to database right now." }, { status: 503 });
-  }
-
-  if (!db) {
-    return NextResponse.json({ ok: false, message: "Admin edits require MongoDB mode." }, { status: 400 });
+  if (!auth.ok) {
+    return auth.response;
   }
 
   let body: CreateUserPayload;
@@ -146,7 +110,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const userModel = getUserModel(db);
+  const userModel = auth.access.userModel;
   const existingUser = await userModel.findOne({ email }).lean();
 
   if (existingUser) {

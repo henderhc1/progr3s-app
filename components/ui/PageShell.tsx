@@ -1,16 +1,19 @@
 import { type ReactNode } from "react";
 import { NavBar, type NavBarProps } from "@/components/ui/NavBar";
+import { SiteFooter } from "@/components/ui/SiteFooter";
 
 type PageShellProps = {
   children: ReactNode;
   nav: NavBarProps;
+  showFooter?: boolean;
 };
 
-export function PageShell({ children, nav }: PageShellProps) {
+export function PageShell({ children, nav, showFooter = false }: PageShellProps) {
   return (
-    <main className="page-wrap">
+    <div className="page-wrap">
       <NavBar {...nav} />
       {children}
-    </main>
+      {showFooter ? <SiteFooter /> : null}
+    </div>
   );
 }
