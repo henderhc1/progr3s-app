@@ -2781,6 +2781,63 @@ button.calendar-cell {
   }
 }
 
+@media (max-width: 360px) {
+  .dashboard-card {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .task-item {
+    padding: 10px;
+  }
+
+  .task-item__summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .task-item__summary-main strong,
+  .task-item__summary-main span {
+    overflow-wrap: anywhere;
+  }
+
+  .task-item__summary-pills {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-item__summary::after {
+    margin-left: 0;
+    justify-self: end;
+  }
+
+  .task-item__header,
+  .task-block__heading,
+  .progress-meter__label {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .task-status-field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .task-item__controls select,
+  .task-status-field select,
+  .goal-filter-panel,
+  .goal-filter-panel select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .subtask-title {
+    min-width: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
