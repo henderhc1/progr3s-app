@@ -23,7 +23,7 @@ const features = [
 const visualStories = [
   {
     label: "Goal",
-    title: "LeetCode problem solved",
+    title: "Work on LeetCode problem",
     imageSrc: "/landing-goal-leetcode.png",
     imageAlt: "A person working on a coding problem at a laptop as a one-time goal.",
     imageWidth: 800,
@@ -32,7 +32,7 @@ const visualStories = [
   },
   {
     label: "Routine",
-    title: "Gym days completed",
+    title: "Go gym",
     imageSrc: "/landing-routine.png",
     imageAlt: "A person following a gym routine and lifting weights.",
     imageWidth: 612,
@@ -88,32 +88,56 @@ export default async function Home() {
       <PageShell nav={homeNav} showFooter>
 
         <section className="hero shell-card">
-          <div className="hero__intro">
-            <p className="eyebrow">Routines + Goals</p>
-            <h1>
-              Stay consistent with goals and routines you can <span>actually keep.</span>
-            </h1>
-            <p className="lead">
-              Plan weekly routines and one-time goals, then track progress with clear proof and history.
-            </p>
-          </div>
+          <div className="hero__main">
+            <div className="hero__intro">
+              <p className="eyebrow">Routines + Goals</p>
+              <h1>
+                Stay consistent with goals and routines you can <span>actually keep.</span>
+              </h1>
+              <p className="lead">
+                Plan weekly routines and one-time goals, then track progress with clear proof and history.
+              </p>
+            </div>
 
-          <div className="hero__figure" aria-label="Progress flow">
-            {heroFlow.map((item) => (
-              <article key={item.step} className="hero-flow-card">
-                <p className="hero-flow-card__step">{item.step}</p>
-                <h2>{item.title}</h2>
-                <p>{item.detail}</p>
-              </article>
-            ))}
-          </div>
+            <div className="hero__stories" aria-label="Visual examples of goals, routines, and outcomes">
+              {visualStories.map((story) => (
+                <article key={story.title} className="hero-story-card">
+                  <div className="hero-story-card__media">
+                    <Image
+                      src={story.imageSrc}
+                      alt={story.imageAlt}
+                      width={story.imageWidth}
+                      height={story.imageHeight}
+                      sizes={`(max-width: 620px) 100vw, (max-width: 920px) 48vw, ${story.maxDisplayPx}px`}
+                      quality={story.preserveOriginal ? 100 : 92}
+                      unoptimized={story.preserveOriginal}
+                    />
+                  </div>
+                  <div className="hero-story-card__content">
+                    <p className="hero-story-card__label">{story.label}</p>
+                    <p className="hero-story-card__title">{story.title}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
 
-          <aside className="stat-panel">
-            <div className="hero__notes hero__notes--right" aria-label="Motivation sticky notes">
+            <div className="hero__notes hero__notes--below" aria-label="Motivation sticky notes">
               {stickyNotes.map((note) => (
                 <p key={note.text} className={`sticky-note sticky-note--${note.tone}`}>
                   {note.text}
                 </p>
+              ))}
+            </div>
+          </div>
+
+          <aside className="stat-panel">
+            <div className="hero__figure" aria-label="Progress flow">
+              {heroFlow.map((item) => (
+                <article key={item.step} className="hero-flow-card">
+                  <p className="hero-flow-card__step">{item.step}</p>
+                  <h2>{item.title}</h2>
+                  <p>{item.detail}</p>
+                </article>
               ))}
             </div>
             <h2>Core Actions</h2>
@@ -137,48 +161,29 @@ export default async function Home() {
             </ul>
           </aside>
 
-          <div className="hero__stories" aria-label="Visual examples of goals, routines, and outcomes">
-            {visualStories.map((story) => (
-              <article key={story.title} className="hero-story-card">
-                <div className="hero-story-card__media">
-                  <Image
-                    src={story.imageSrc}
-                    alt={story.imageAlt}
-                    width={story.imageWidth}
-                    height={story.imageHeight}
-                    sizes={`(max-width: 620px) 100vw, (max-width: 920px) 48vw, ${story.maxDisplayPx}px`}
-                    quality={story.preserveOriginal ? 100 : 92}
-                    unoptimized={story.preserveOriginal}
-                  />
-                </div>
-                <div className="hero-story-card__content">
-                  <p className="hero-story-card__label">{story.label}</p>
-                  <p className="hero-story-card__title">{story.title}</p>
-                </div>
-              </article>
-            ))}
-          </div>
         </section>
 
-        <section id="features" className="feature-strip shell-card">
-          <div className="section-grid section-grid--feature">
-            {features.map((feature) => (
-              <InfoCard key={feature.title} title={feature.title} body={feature.body} />
-            ))}
-          </div>
-        </section>
+        <div className="landing-flow">
+          <section id="features" className="feature-strip shell-card">
+            <div className="section-grid section-grid--feature">
+              {features.map((feature) => (
+                <InfoCard key={feature.title} title={feature.title} body={feature.body} />
+              ))}
+            </div>
+          </section>
 
-        <section id="workflow" className="workflow shell-card">
-          <h2>How It Works</h2>
-          <ol>
-            <li>Add a goal (one-time) or routine (weekly reset).</li>
-            <li>Break it into subtasks and pick your scheduled days.</li>
-            <li>Choose verification type: photo, location, or share with a connection.</li>
-            <li>Track confirmed completions in your calendar and keep progress moving.</li>
-          </ol>
-        </section>
+          <section id="workflow" className="workflow shell-card">
+            <h2>How It Works</h2>
+            <ol>
+              <li>Add a goal (one-time) or routine (weekly reset).</li>
+              <li>Break it into subtasks and pick your scheduled days.</li>
+              <li>Choose verification type: photo, location, or share with a connection.</li>
+              <li>Track confirmed completions in your calendar and keep progress moving.</li>
+            </ol>
+          </section>
 
-        <ProgressPlayground />
+          <ProgressPlayground />
+        </div>
       </PageShell>
     </HomeWelcomeTransition>
   );
