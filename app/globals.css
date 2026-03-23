@@ -222,6 +222,12 @@ a {
     transform 140ms ease;
 }
 
+.topbar__links .topbar__link--workflow {
+  flex: 0 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
 .topbar__links a:hover {
   color: var(--text-strong);
   border-color: rgba(255, 212, 74, 0.72);

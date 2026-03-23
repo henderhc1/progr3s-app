@@ -5,6 +5,7 @@ type NavigationItem = {
   href: string;
   label: string;
   active?: boolean;
+  className?: string;
 };
 
 export type NavBarProps = {
@@ -70,7 +71,7 @@ function getNavConfig({
       ariaLabel: "Primary navigation",
       links: [
         { href: "/#features", label: "Features" },
-        { href: "/#workflow", label: "How It Works" },
+        { href: "/#workflow", label: "How It Works", className: "topbar__link--workflow" },
         { href: "/about", label: "About", active: activeMarketingLink === "about" },
         { href: "/contact", label: "Contact", active: activeMarketingLink === "contact" },
       ],
@@ -130,7 +131,11 @@ export function NavBar({
       {navConfig && (
         <nav className="topbar__links" aria-label={navConfig.ariaLabel}>
           {navConfig.links.map((link) => (
-            <Link key={link.href} href={link.href} className={link.active ? "is-active" : undefined}>
+            <Link
+              key={link.href}
+              href={link.href}
+              className={[link.className, link.active ? "is-active" : undefined].filter(Boolean).join(" ") || undefined}
+            >
               {link.label}
             </Link>
           ))}
